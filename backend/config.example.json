@@ -1,0 +1,91 @@
+{
+    "server": {
+        "port": 3001,
+        "host": "0.0.0.0",
+        "corsOrigins": [
+            "http://localhost:5173",
+            "http://localhost:3000"
+        ]
+    },
+    "database": {
+        "postgresql": {
+            "host": "localhost",
+            "port": 5432,
+            "database": "ysnockserver",
+            "username": "postgres",
+            "password": "postgres"
+        },
+        "redis": {
+            "host": "localhost",
+            "port": 6379,
+            "password": ""
+        }
+    },
+    "auth": {
+        "jwtSecret": "your-super-secret-jwt-key-change-this-in-production",
+        "jwtRefreshSecret": "your-super-secret-refresh-key-change-this-in-production",
+        "jwtExpiresIn": "15m",
+        "jwtRefreshExpiresIn": "7d",
+        "bcryptRounds": 10,
+        "sessionDuration": 86400
+    },
+    "ssh": {
+        "maxConcurrentConnections": 10,
+        "connectionTimeout": 30000,
+        "keepaliveInterval": 10000,
+        "encryptionKey": "your-32-char-encryption-key-here"
+    },
+    "monitoring": {
+        "defaultCheckInterval": 60000,
+        "defaultTimeout": 5000,
+        "retentionDays": 30
+    },
+    "alerts": {
+        "evaluationInterval": 30000,
+        "debounceTime": 300000,
+        "channels": {
+            "email": {
+                "enabled": false,
+                "smtp": {
+                    "host": "smtp.gmail.com",
+                    "port": 587,
+                    "secure": false,
+                    "auth": {
+                        "user": "your-email@gmail.com",
+                        "pass": "your-app-password"
+                    }
+                },
+                "from": "ysnockserver <noreply@ysnockserver.local>"
+            },
+            "slack": {
+                "enabled": false,
+                "webhookUrl": ""
+            },
+            "discord": {
+                "enabled": false,
+                "webhookUrl": ""
+            },
+            "telegram": {
+                "enabled": false,
+                "botToken": "",
+                "chatId": ""
+            }
+        }
+    },
+    "logs": {
+        "level": "info",
+        "retentionDays": 30,
+        "maxFileSize": "20m",
+        "maxFiles": "14d"
+    },
+    "rateLimit": {
+        "windowMs": 900000,
+        "max": 100
+    },
+    "features": {
+        "registration": true,
+        "twoFactor": true,
+        "apiTesting": true,
+        "automation": true
+    }
+}

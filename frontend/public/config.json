@@ -1,0 +1,91 @@
+{
+  "branding": {
+    "name": "ysnockserver",
+    "tagline": "Universal Infrastructure Control Dashboard",
+    "description": "Monitorize e controle toda a sua infraestrutura num painel unificado."
+  },
+  "ssh": {
+    "servers": [],
+    "terminalCommands": {
+      "ls": {
+        "output": [
+          "total 48",
+          "drwxr-xr-x  8 root root 4096 Nov 30 17:00 .",
+          "drwxr-xr-x  3 root root 4096 Nov 29 10:00 ..",
+          "-rw-------  1 root root  220 Nov 29 10:00 .bash_logout",
+          "-rw-------  1 root root 3526 Nov 29 10:00 .bashrc",
+          "drwxr-xr-x  3 root root 4096 Nov 30 12:00 app",
+          "drwxr-xr-x  2 root root 4096 Nov 30 15:00 logs",
+          "-rw-r--r--  1 root root  807 Nov 29 10:00 .profile"
+        ]
+      },
+      "pwd": {
+        "output": [
+          "/root"
+        ]
+      },
+      "whoami": {
+        "output": [
+          "root"
+        ]
+      },
+      "uname -a": {
+        "output": [
+          "Linux ysnockserver 5.15.0-91-generic #101-Ubuntu SMP x86_64 GNU/Linux"
+        ]
+      },
+      "free -h": {
+        "output": [
+          "              total        used        free      shared  buff/cache   available",
+          "Mem:           15Gi       3.2Gi       8.1Gi       124Mi       4.2Gi        11Gi",
+          "Swap:         2.0Gi          0B       2.0Gi"
+        ]
+      },
+      "df -h": {
+        "output": [
+          "Filesystem      Size  Used Avail Use% Mounted on",
+          "/dev/sda1       100G   45G   50G  48% /",
+          "tmpfs           7.8G     0  7.8G   0% /dev/shm"
+        ]
+      },
+      "ps aux": {
+        "output": [
+          "USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND",
+          "root         1  0.0  0.1  22564  8932 ?        Ss   10:00   0:01 /sbin/init",
+          "root       245  0.0  0.2  64520 12456 ?        S    10:00   0:00 /lib/systemd/systemd-journald",
+          "root       512  0.1  1.2 724352 98234 ?        Ssl  10:01   0:45 /usr/bin/dockerd",
+          "www-data  1234  0.5  2.3 456789 123456 ?       Sl   12:00   2:15 node /app/server.js"
+        ]
+      }
+    },
+    "terminalWelcome": {
+      "enabled": true,
+      "banner": [
+        "┌─────────────────────────────────────────────────┐",
+        "│  ysnockserver SSH Terminal                     │",
+        "└─────────────────────────────────────────────────┘"
+      ],
+      "motd": "Welcome to Ubuntu 22.04 LTS",
+      "prompt": {
+        "user": "root",
+        "hostname": "ysnockserver",
+        "path": "~"
+      }
+    }
+  },
+  "databases": {
+    "connections": []
+  },
+  "monitoring": {
+    "services": []
+  },
+  "dashboard": {
+    "stats": {
+      "activeServers": 12,
+      "cpuLoad": 45,
+      "memoryUsage": "24.8 GB",
+      "memoryTotal": "64GB",
+      "activeAlerts": 3
+    }
+  }
+}
