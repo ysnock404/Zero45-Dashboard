@@ -1,10 +1,11 @@
 {
     "server": {
-        "port": 3001,
+        "port": 9031,
         "host": "0.0.0.0",
         "corsOrigins": [
             "http://localhost:5173",
-            "http://localhost:3000"
+            "http://localhost:3000",
+            "http://192.168.1.93:5173"
         ]
     },
     "database": {
@@ -87,5 +88,16 @@
         "twoFactor": true,
         "apiTesting": true,
         "automation": true
+    },
+    "proxmox": {
+        "baseUrl": "https://127.0.0.1:8006",
+        "tokenId": "root@pam!dashboard",
+        "tokenSecret": "change-me",
+        "verifySsl": false
+    },
+    "guacamole": {
+        "host": "127.0.0.1",
+        "port": 4822,
+        "encryptionKey": "MySuperSecretKeyForParamsToken12"
     }
 }
