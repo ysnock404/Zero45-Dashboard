@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { proxmoxApi, hostApi } from "@/services/api"
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 
 type Resource = {
   id: string
@@ -25,6 +25,7 @@ type Resource = {
 export default function Proxmox() {
   const { toast } = useToast()
   const [resources, setResources] = useState<Resource[]>([])
+  const [resourcesLoaded, setResourcesLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [vmDetails, setVmDetails] = useState<Record<string, any>>({})
@@ -61,12 +62,13 @@ export default function Proxmox() {
         })
       } finally {
         setLoading(false)
+        setResourcesLoaded(true)
       }
     }
     load()
 
-    // Auto refresh every 10s
-    const timer = setInterval(load, 10000)
+    // Auto refresh every 5s
+    const timer = setInterval(load, 5000)
     setAutoRefresh(timer)
 
     return () => {
@@ -78,6 +80,8 @@ export default function Proxmox() {
   const nodes = useMemo(() => resources.filter(r => r.type === "node"), [resources])
   const vms = useMemo(() => resources.filter(r => r.type === "qemu"), [resources])
   const containers = useMemo(() => resources.filter(r => r.type === "lxc"), [resources])
+  const runningVms = useMemo(() => vms.filter(vm => vm.status === "running"), [vms])
+  const stoppedVms = useMemo(() => vms.filter(vm => vm.status !== "running"), [vms])
 
   const refresh = async () => {
     try {
@@ -93,6 +97,7 @@ export default function Proxmox() {
       })
     } finally {
       setLoading(false)
+      setResourcesLoaded(true)
     }
   }
 
@@ -185,7 +190,12 @@ export default function Proxmox() {
       const cpuRaw = p.cpu !== undefined && p.cpu !== null ? +(p.cpu * 100).toFixed(2) : null
       const cpu = cpuRaw === null ? null : Math.max(cpuRaw, 0.5) // evita 0% visual
       const mem = p.mem && p.maxmem ? +(((p.mem / p.maxmem) * 100) || 0).toFixed(2) : null
-      const disk = p.disk && p.maxdisk ? +(((p.disk / p.maxdisk) * 100) || 0).toFixed(2) : null
+      const hasRate = p.diskread !== undefined || p.diskwrite !== undefined
+      const diskRateMb = hasRate
+        ? +((((p.diskread || 0) + (p.diskwrite || 0)) / 1_000_000) || 0).toFixed(2)
+        : null
+      const diskPct = p.disk && p.maxdisk ? +(((p.disk / p.maxdisk) * 100) || 0).toFixed(2) : null
+      const disk = diskRateMb !== null ? diskRateMb : diskPct
       const net = p.netin && p.netout ? +(formatNetMb(p.netin + p.netout)) : null
       return { time, cpu, mem, disk, net }
     })
@@ -205,7 +215,22 @@ export default function Proxmox() {
       if (kind === "node") data = await proxmoxApi.getNodeMetrics(node, timeframe)
       if (kind === "vm" && vmid !== undefined) data = await proxmoxApi.getQemuMetrics(node, vmid, timeframe)
       if (kind === "ct" && vmid !== undefined) data = await proxmoxApi.getLxcMetrics(node, vmid, timeframe)
-      setMetrics(prev => ({ ...prev, [key]: buildChartData(data || []) }))
+      const resourceKey =
+        kind === "node" ? `node/${node}` : kind === "vm" ? `qemu/${vmid}` : kind === "ct" ? `lxc/${vmid}` : ""
+      const resInfo = resourcesById[resourceKey]
+      const hydrated = (data || []).map(p => ({
+        ...p,
+        maxdisk: p.maxdisk || resInfo?.maxdisk,
+        disk: p.disk || resInfo?.disk,
+      }))
+      setMetrics(prev => {
+        const nextData = buildChartData(hydrated || [])
+        // Se a API devolver vazio (e.g. sem RRD ainda), preserva último dataset para não quebrar os gráficos.
+        if ((!data || data.length === 0) && prev[key]) {
+          return prev
+        }
+        return { ...prev, [key]: nextData }
+      })
     } catch (error: any) {
       console.error("Failed to load metrics", error)
       if (showToast) {
@@ -224,8 +249,10 @@ export default function Proxmox() {
   useEffect(() => {
     const loadAllMetrics = () => {
       nodes.forEach(n => loadMetrics("node", n.node || n.id, undefined, false))
-      vms.forEach(vm => loadMetrics("vm", vm.node || "", vm.vmid || 0, false))
-      containers.forEach(ct => loadMetrics("ct", ct.node || "", ct.vmid || 0, false))
+      vms.filter(vm => vm.status === "running").forEach(vm => loadMetrics("vm", vm.node || "", vm.vmid || 0, false))
+      containers
+        .filter(ct => ct.status === "running")
+        .forEach(ct => loadMetrics("ct", ct.node || "", ct.vmid || 0, false))
     }
 
     loadAllMetrics()
@@ -244,24 +271,33 @@ export default function Proxmox() {
     const loadHost = async () => {
       try {
         const data = await hostApi.getMetrics()
-        const memPct = data?.memory?.total ? (data.memory.used / data.memory.total) * 100 : 0
-        const diskPct = data?.disks?.[0]?.use || 0
-        const netMb = data?.network?.aggregate
-          ? ((data.network.aggregate.rx_sec || 0) + (data.network.aggregate.tx_sec || 0)) / 1_000_000
-          : 0
-        const sample = {
-          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
-          cpuLoad: data?.cpu?.load != null ? Math.max(+(data.cpu.load.toFixed(2)), 0.5) : null,
-          cpuTemp: data?.cpu?.temp || null,
-          memPct: data?.memory?.total ? +memPct.toFixed(2) : null,
-          diskPct: data?.disks?.[0]?.use != null ? +diskPct.toFixed(2) : null,
-          netMb: +netMb.toFixed(2),
-          watts: data?.power?.watts || null,
+        const latest = data?.latest || data
+        const history = data?.history || []
+
+        const toSample = (s: any) => {
+          if (!s) return null
+          const memPct = s?.memory?.total ? (s.memory.used / s.memory.total) * 100 : 0
+          const diskPct = s?.disks?.[0]?.use || 0
+          const netMb = s?.network?.aggregate
+            ? ((s.network.aggregate.rx_sec || 0) + (s.network.aggregate.tx_sec || 0)) / 1_000_000
+            : 0
+          return {
+            time: new Date((s.timestamp || Date.now() / 1000) * 1000).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            }),
+            cpuLoad: s?.cpu?.load != null ? Math.max(+(s.cpu.load.toFixed(2)), 0.5) : null,
+            cpuTemp: s?.cpu?.temp || null,
+            memPct: s?.memory?.total ? +memPct.toFixed(2) : null,
+            diskPct: s?.disks?.[0]?.use != null ? +diskPct.toFixed(2) : null,
+            netMb: +netMb.toFixed(2),
+            watts: s?.power?.watts ?? null,
+          }
         }
-        setHostSamples(prev => {
-          const next = [...prev, sample]
-          return next.slice(-120) // ~10 min history at 5s
-        })
+
+        const base = (history.length ? history : latest ? [latest] : []).map(toSample).filter(Boolean) as any[]
+        setHostSamples(base.slice(-120)) // keep ~10 min history
       } catch (error: any) {
         console.error("Failed to load host metrics", error)
       }
@@ -318,7 +354,6 @@ export default function Proxmox() {
             <SelectItem value="week">Última semana</SelectItem>
           </SelectContent>
         </Select>
-        <p className="text-sm text-muted-foreground">Charts para node/VM/CT com base no timeframe escolhido.</p>
       </div>
 
       <Card className="glass-card border-0 bg-black/40">
@@ -350,7 +385,7 @@ export default function Proxmox() {
             <MetricChart data={hostCharts.net} color="#10b981" label="Net MB/s" domain={[0, 200]} />
           </div>
           <div className="h-32 space-y-1">
-            <p className="text-xs text-muted-foreground">Watts (se disponível)</p>
+            <p className="text-xs text-muted-foreground">Watts</p>
             <MetricChart data={hostCharts.watts} color="#eab308" label="Watts" domain={[0, 500]} />
           </div>
         </CardContent>
@@ -361,7 +396,6 @@ export default function Proxmox() {
           <CardTitle>Nodes</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {loading && <p className="text-sm text-muted-foreground">A carregar...</p>}
           {!loading && nodes.length === 0 && (
             <p className="text-sm text-muted-foreground">Nenhum node encontrado.</p>
           )}
@@ -399,110 +433,56 @@ export default function Proxmox() {
         <CardHeader>
           <CardTitle>VMs (QEMU)</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
+        <CardContent className="space-y-6">
           {vms.length === 0 && !loading && <p className="text-sm text-muted-foreground">Nenhuma VM.</p>}
-          {vms.map(vm => {
-            const keyRunning = vm.status === "running"
-            const metricsKey = `vm-${vm.node}-${vm.vmid}-${timeframe}`
-            const chartData = metrics[metricsKey] || { cpu: [], mem: [], disk: [], net: [] }
-            return (
-              <div key={vm.id} className="rounded-lg border border-white/10 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium">{vm.name || vm.id}</p>
-                  <Badge variant={keyRunning ? "default" : "outline"}>{vm.status}</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">VMID {vm.vmid} • Node {vm.node}</p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-white/10"
-                    disabled={actionLoading === `start-vm-${vm.node}-${vm.vmid}` || keyRunning}
-                    onClick={() => handleAction("start", "vm", vm.node || "", vm.vmid || 0)}
-                  >
-                    Start
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-white/10"
-                    disabled={actionLoading === `stop-vm-${vm.node}-${vm.vmid}` || !keyRunning}
-                    onClick={() => handleAction("stop", "vm", vm.node || "", vm.vmid || 0)}
-                  >
-                    Stop
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-white/10"
-                    disabled={actionLoading === `reboot-vm-${vm.node}-${vm.vmid}` || !keyRunning}
-                    onClick={() => handleAction("reboot", "vm", vm.node || "", vm.vmid || 0)}
-                  >
-                    Reboot
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-white/10"
-                    disabled={detailLoading === `vm-${vm.node}-${vm.vmid}`}
-                    onClick={() => loadVmStatus(vm.node || "", vm.vmid || 0)}
-                  >
-                    Detalhes
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-white/10"
-                    disabled={metricsLoading === metricsKey}
-                    onClick={() => loadMetrics("vm", vm.node || "", vm.vmid || 0)}
-                  >
-                    Métricas
-                  </Button>
-                </div>
-                {vmDetails[`vm-${vm.node}-${vm.vmid}`] && (
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>CPU: {((vmDetails[`vm-${vm.node}-${vm.vmid}`].cpu || 0) * 100).toFixed(1)}%</p>
-                    <p>Mem: {formatBytesGB(vmDetails[`vm-${vm.node}-${vm.vmid}`].mem)} / {formatBytesGB(vmDetails[`vm-${vm.node}-${vm.vmid}`].maxmem)} GB</p>
-                    <div className="h-1.5 w-full bg-white/5 rounded overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500"
-                        style={{
-                          width: `${Math.min(100, ((vmDetails[`vm-${vm.node}-${vm.vmid}`].mem || 0) / (vmDetails[`vm-${vm.node}-${vm.vmid}`].maxmem || 1)) * 100)}%`
-                        }}
-                      />
-                    </div>
-                    <p>Disk: {formatBytesGB(vmDetails[`vm-${vm.node}-${vm.vmid}`].disk)} / {formatBytesGB(vmDetails[`vm-${vm.node}-${vm.vmid}`].maxdisk)} GB</p>
-                    <div className="h-1.5 w-full bg-white/5 rounded overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500"
-                        style={{
-                          width: `${Math.min(100, ((vmDetails[`vm-${vm.node}-${vm.vmid}`].disk || 0) / (vmDetails[`vm-${vm.node}-${vm.vmid}`].maxdisk || 1)) * 100)}%`
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="h-32 space-y-1">
-                    <p className="text-xs text-muted-foreground">CPU %</p>
-                    <MetricChart data={chartData.cpu} color="#F0003C" label="CPU %" domain={[0, 100]} />
-                  </div>
-                  <div className="h-32 space-y-1">
-                    <p className="text-xs text-muted-foreground">Mem %</p>
-                    <MetricChart data={chartData.mem} color="#3b82f6" label="Mem %" domain={[0, 100]} />
-                  </div>
-                  <div className="h-32 space-y-1">
-                    <p className="text-xs text-muted-foreground">Disco %</p>
-                    <MetricChart data={chartData.disk} color="#8b5cf6" label="Disk %" domain={[0, 100]} />
-                  </div>
-                  <div className="h-32 space-y-1">
-                    <p className="text-xs text-muted-foreground">Rede MB/s</p>
-                    <MetricChart data={chartData.net} color="#10b981" label="Net MB/s" domain={[0, 200]} />
-                  </div>
-                </div>
+
+          {runningVms.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Online</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {runningVms.map(vm => {
+                  const keyRunning = vm.status === "running"
+                  const metricsKey = `vm-${vm.node}-${vm.vmid}-${timeframe}`
+                  const chartData = metrics[metricsKey] || { cpu: [], mem: [], disk: [], net: [] }
+                  return (
+                    <VmCard
+                      key={vm.id}
+                      vm={vm}
+                      keyRunning={keyRunning}
+                      metricsKey={metricsKey}
+                      chartData={chartData}
+                      actionLoading={actionLoading}
+                      handleAction={handleAction}
+                    />
+                  )
+                })}
               </div>
-            )
-          })}
+            </div>
+          )}
+
+          {stoppedVms.length > 0 && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Offline</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                {stoppedVms.map(vm => {
+                  const keyRunning = vm.status === "running"
+                  const metricsKey = `vm-${vm.node}-${vm.vmid}-${timeframe}`
+                  const chartData = metrics[metricsKey] || { cpu: [], mem: [], disk: [], net: [] }
+                  return (
+                    <VmCard
+                      key={vm.id}
+                      vm={vm}
+                      keyRunning={keyRunning}
+                      metricsKey={metricsKey}
+                      chartData={chartData}
+                      actionLoading={actionLoading}
+                      handleAction={handleAction}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -511,7 +491,9 @@ export default function Proxmox() {
           <CardTitle>Containers (LXC)</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
-          {containers.length === 0 && !loading && <p className="text-sm text-muted-foreground">Nenhum container.</p>}
+          {resourcesLoaded && containers.length === 0 && (
+            <p className="text-sm text-muted-foreground">Nenhum container.</p>
+          )}
           {containers.map(ct => {
             const running = ct.status === "running"
             const metricsKey = `ct-${ct.node}-${ct.vmid}-${timeframe}`
@@ -520,7 +502,9 @@ export default function Proxmox() {
               <div key={ct.id} className="rounded-lg border border-white/10 p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="font-medium">{ct.name || ct.id}</p>
-                  <Badge variant={running ? "default" : "outline"}>{ct.status}</Badge>
+                  <Badge variant={running ? "default" : "outline"} className={running ? "bg-emerald-500 text-white" : ""}>
+                    {running ? "online" : "offline"}
+                  </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">CTID {ct.vmid} • Node {ct.node}</p>
                 <div className="flex gap-2">
@@ -551,66 +535,27 @@ export default function Proxmox() {
                   >
                     Reboot
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-white/10"
-                    disabled={detailLoading === `ct-${ct.node}-${ct.vmid}`}
-                    onClick={() => loadCtStatus(ct.node || "", ct.vmid || 0)}
-                  >
-                    Detalhes
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-white/10"
-                    disabled={metricsLoading === metricsKey}
-                    onClick={() => loadMetrics("ct", ct.node || "", ct.vmid || 0)}
-                  >
-                    Métricas
-                  </Button>
                 </div>
-                {ctDetails[`ct-${ct.node}-${ct.vmid}`] && (
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>CPU: {((ctDetails[`ct-${ct.node}-${ct.vmid}`].cpu || 0) * 100).toFixed(1)}%</p>
-                    <p>Mem: {formatBytesGB(ctDetails[`ct-${ct.node}-${ct.vmid}`].mem)} / {formatBytesGB(ctDetails[`ct-${ct.node}-${ct.vmid}`].maxmem)} GB</p>
-                    <div className="h-1.5 w-full bg-white/5 rounded overflow-hidden">
-                      <div
-                        className="h-full bg-emerald-500"
-                        style={{
-                          width: `${Math.min(100, ((ctDetails[`ct-${ct.node}-${ct.vmid}`].mem || 0) / (ctDetails[`ct-${ct.node}-${ct.vmid}`].maxmem || 1)) * 100)}%`
-                        }}
-                      />
+                {running && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="h-32 space-y-1">
+                      <p className="text-xs text-muted-foreground">CPU %</p>
+                      <MetricChart data={chartData.cpu} color="#F0003C" label="CPU %" domain={[0, 100]} />
                     </div>
-                    <p>Disk: {formatBytesGB(ctDetails[`ct-${ct.node}-${ct.vmid}`].disk)} / {formatBytesGB(ctDetails[`ct-${ct.node}-${ct.vmid}`].maxdisk)} GB</p>
-                    <div className="h-1.5 w-full bg-white/5 rounded overflow-hidden">
-                      <div
-                        className="h-full bg-blue-500"
-                        style={{
-                          width: `${Math.min(100, ((ctDetails[`ct-${ct.node}-${ct.vmid}`].disk || 0) / (ctDetails[`ct-${ct.node}-${ct.vmid}`].maxdisk || 1)) * 100)}%`
-                        }}
-                      />
+                    <div className="h-32 space-y-1">
+                      <p className="text-xs text-muted-foreground">Mem %</p>
+                      <MetricChart data={chartData.mem} color="#3b82f6" label="Mem %" domain={[0, 100]} />
+                    </div>
+                    <div className="h-32 space-y-1">
+                      <p className="text-xs text-muted-foreground">Disco MB/s</p>
+                      <MetricChart data={chartData.disk} color="#8b5cf6" label="Disk MB/s" domain={["auto", "auto"]} />
+                    </div>
+                    <div className="h-32 space-y-1">
+                      <p className="text-xs text-muted-foreground">Rede MB/s</p>
+                      <MetricChart data={chartData.net} color="#10b981" label="Net MB/s" domain={[0, 200]} />
                     </div>
                   </div>
                 )}
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="h-32 space-y-1">
-                    <p className="text-xs text-muted-foreground">CPU %</p>
-                    <MetricChart data={chartData.cpu} color="#F0003C" label="CPU %" domain={[0, 100]} />
-                  </div>
-                  <div className="h-32 space-y-1">
-                    <p className="text-xs text-muted-foreground">Mem %</p>
-                    <MetricChart data={chartData.mem} color="#3b82f6" label="Mem %" domain={[0, 100]} />
-                  </div>
-                  <div className="h-32 space-y-1">
-                    <p className="text-xs text-muted-foreground">Disco %</p>
-                    <MetricChart data={chartData.disk} color="#8b5cf6" label="Disk %" domain={[0, 100]} />
-                  </div>
-                  <div className="h-32 space-y-1">
-                    <p className="text-xs text-muted-foreground">Rede MB/s</p>
-                    <MetricChart data={chartData.net} color="#10b981" label="Net MB/s" domain={[0, 200]} />
-                  </div>
-                </div>
               </div>
             )
           })}
@@ -631,9 +576,16 @@ const MetricChart = ({
   domain?: [number, number] | ["auto", "auto"]
 }) => {
   if (!data || data.length === 0) return <p className="text-sm text-muted-foreground">Sem dados</p>
+  const gradientId = `grad-${label.replace(/\s+/g, "-").toLowerCase()}`
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={color} stopOpacity={0.7} />
+            <stop offset="95%" stopColor={color} stopOpacity={0.1} />
+          </linearGradient>
+        </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
         <XAxis dataKey="time" stroke="rgba(255,255,255,0.5)" style={{ fontSize: 10 }} />
         <YAxis stroke="rgba(255,255,255,0.5)" style={{ fontSize: 10 }} domain={domain || ["auto", "auto"]} />
@@ -646,8 +598,96 @@ const MetricChart = ({
           labelStyle={{ color: "rgba(255,255,255,0.7)" }}
           formatter={(value: any) => [`${value}`, label]}
         />
-        <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} name={label} />
-      </LineChart>
+        <Area
+          type="monotone"
+          dataKey="value"
+          stroke={color}
+          strokeWidth={2}
+          fillOpacity={1}
+          fill={`url(#${gradientId})`}
+          stackId="stack"
+          name={label}
+          dot={false}
+          isAnimationActive={false}
+        />
+      </AreaChart>
     </ResponsiveContainer>
+  )
+}
+
+const VmCard = ({
+  vm,
+  keyRunning,
+  metricsKey,
+  chartData,
+  actionLoading,
+  handleAction,
+}: {
+  vm: any
+  keyRunning: boolean
+  metricsKey: string
+  chartData: any
+  actionLoading: string | null
+  handleAction: (type: "start" | "stop" | "reboot", kind: "vm" | "ct", node: string, vmid: number | string) => void
+}) => {
+  return (
+    <div className="rounded-lg border border-white/10 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="font-medium">{vm.name || vm.id}</p>
+        <Badge variant={keyRunning ? "default" : "outline"} className={keyRunning ? "bg-emerald-500 text-white" : ""}>
+          {keyRunning ? "online" : "offline"}
+        </Badge>
+      </div>
+      <p className="text-xs text-muted-foreground">VMID {vm.vmid} • Node {vm.node}</p>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-white/10"
+          disabled={actionLoading === `start-vm-${vm.node}-${vm.vmid}` || keyRunning}
+          onClick={() => handleAction("start", "vm", vm.node || "", vm.vmid || 0)}
+        >
+          Start
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-white/10"
+          disabled={actionLoading === `stop-vm-${vm.node}-${vm.vmid}` || !keyRunning}
+          onClick={() => handleAction("stop", "vm", vm.node || "", vm.vmid || 0)}
+        >
+          Stop
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-white/10"
+          disabled={actionLoading === `reboot-vm-${vm.node}-${vm.vmid}` || !keyRunning}
+          onClick={() => handleAction("reboot", "vm", vm.node || "", vm.vmid || 0)}
+        >
+          Reboot
+        </Button>
+      </div>
+      {keyRunning && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="h-32 space-y-1">
+            <p className="text-xs text-muted-foreground">CPU %</p>
+            <MetricChart data={chartData.cpu} color="#F0003C" label="CPU %" domain={[0, 100]} />
+          </div>
+          <div className="h-32 space-y-1">
+            <p className="text-xs text-muted-foreground">Mem %</p>
+            <MetricChart data={chartData.mem} color="#3b82f6" label="Mem %" domain={[0, 100]} />
+          </div>
+          <div className="h-32 space-y-1">
+            <p className="text-xs text-muted-foreground">Disco MB/s</p>
+            <MetricChart data={chartData.disk} color="#8b5cf6" label="Disk MB/s" domain={["auto", "auto"]} />
+          </div>
+          <div className="h-32 space-y-1">
+            <p className="text-xs text-muted-foreground">Rede MB/s</p>
+            <MetricChart data={chartData.net} color="#10b981" label="Net MB/s" domain={[0, 200]} />
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

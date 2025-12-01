@@ -2,15 +2,15 @@
 
 SERVICE_NAME="zero45-dashboard.service"
 
-# When executed manually, stop the managed systemd unit instead of killing processes directly.
-if [ -z "${INVOCATION_ID:-}" ]; then
-    if command -v systemctl >/dev/null 2>&1; then
-        echo "[stop.sh] Delegating stop to systemctl (${SERVICE_NAME})..."
-        exec systemctl stop "${SERVICE_NAME}"
-    else
-        echo "[stop.sh] systemctl não encontrado; execute via systemd ou export INVOCATION_ID para executar diretamente."
-        exit 1
-    fi
+# Prefer systemd control when available (manual invocation).
+if [ -z "${INVOCATION_ID:-}" ] && command -v systemctl >/dev/null 2>&1; then
+    echo "[stop.sh] Delegating stop to systemctl (${SERVICE_NAME})..."
+    exec systemctl stop "${SERVICE_NAME}"
+fi
+
+# If running inside systemd (ExecStop), rely on unit management and exit quietly.
+if [ -n "${INVOCATION_ID:-}" ]; then
+    exit 0
 fi
 
 # ysnockserver - Stop Script
