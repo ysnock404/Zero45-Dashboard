@@ -5,7 +5,7 @@ import { CommandPalette } from "./CommandPalette"
 
 export function Layout() {
   return (
-    <div className="flex min-h-screen font-sans text-foreground">
+    <div className="flex h-screen overflow-hidden font-sans text-foreground">
       <Sidebar />
       <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto">
         <Topbar />
