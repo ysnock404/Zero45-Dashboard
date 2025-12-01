@@ -104,3 +104,9 @@ Feel free to fork and fix my bugs.
 **Disclaimer:** This is a hobby project. Don't use this to manage critical infrastructure (yet).
 
 **Developed by ysnock**
+
+---
+
+## 📌 Internal Planning
+
+See `INTERNAL.md` for the up-to-date status, gaps, and priorities (for internal use).
