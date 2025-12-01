@@ -33,8 +33,8 @@ kill_port() {
     fi
 }
 
-# Stop backend (port 3001)
-kill_port 3001 "Backend"
+# Stop backend (port 9031)
+kill_port 9031 "Backend"
 
 # Stop frontend (port 5173)
 kill_port 5173 "Frontend"

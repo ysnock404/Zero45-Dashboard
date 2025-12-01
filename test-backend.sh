@@ -12,7 +12,7 @@ NC='\033[0m' # No Color
 
 # Check if backend is running
 echo "📡 Checking backend..."
-if curl -s http://localhost:3001/health > /dev/null 2>&1; then
+if curl -s http://localhost:9031/health > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Backend is running${NC}"
 else
     echo -e "${RED}✗ Backend is NOT running${NC}"
@@ -24,7 +24,7 @@ echo ""
 
 # Test health endpoint
 echo "🏥 Testing health endpoint..."
-HEALTH=$(curl -s http://localhost:3001/health)
+HEALTH=$(curl -s http://localhost:9031/health)
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Health check passed${NC}"
     echo "  Response: $HEALTH"
@@ -37,7 +37,7 @@ echo ""
 
 # Test login
 echo "🔐 Testing login..."
-LOGIN_RESPONSE=$(curl -s -X POST http://localhost:3001/api/auth/login \
+LOGIN_RESPONSE=$(curl -s -X POST http://localhost:9031/api/auth/login \
     -H "Content-Type: application/json" \
     -d '{"email":"admin@ysnockserver.local","password":"admin"}')
 
@@ -55,7 +55,7 @@ echo ""
 
 # Test SSH servers endpoint
 echo "🖥️  Testing SSH servers endpoint..."
-SSH_RESPONSE=$(curl -s http://localhost:3001/api/ssh/servers)
+SSH_RESPONSE=$(curl -s http://localhost:9031/api/ssh/servers)
 
 if echo "$SSH_RESPONSE" | grep -q "status"; then
     echo -e "${GREEN}✓ SSH servers endpoint working${NC}"

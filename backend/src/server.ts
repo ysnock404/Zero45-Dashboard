@@ -10,7 +10,12 @@ import { logger } from './shared/utils/logger';
 import { errorHandler } from './shared/middleware/errorHandler';
 import { authRouter } from './modules/auth/auth.routes';
 import { sshRouter } from './modules/ssh/ssh.routes';
+import { rdpRouter } from './modules/rdp/rdp.routes';
+import { proxmoxRouter } from './modules/proxmox/proxmox.routes';
+import { hostRouter } from './modules/host/host.routes';
 import { setupSSHGateway } from './modules/ssh/ssh.gateway';
+import { setupRDPGateway } from './modules/rdp/rdp.gateway';
+import { setupGuacamoleServer } from './modules/rdp/guac.server';
 
 class Server {
     private app: Application;
@@ -86,6 +91,9 @@ class Server {
         // API routes
         this.app.use('/api/auth', authRouter);
         this.app.use('/api/ssh', sshRouter);
+        this.app.use('/api/rdp', rdpRouter);
+        this.app.use('/api/proxmox', proxmoxRouter);
+        this.app.use('/api/host', hostRouter);
 
         // 404 handler
         this.app.use((req, res) => {
@@ -118,6 +126,12 @@ class Server {
 
         // Setup SSH Gateway
         setupSSHGateway(this.io);
+
+        // Setup RDP Gateway
+        setupRDPGateway(this.io);
+
+        // Setup Guacamole bridge (shares HTTP server)
+        setupGuacamoleServer(this.httpServer);
 
         logger.info('✓ WebSocket configured');
     }

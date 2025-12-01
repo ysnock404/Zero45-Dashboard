@@ -21,28 +21,15 @@ export function Terminal({ serverId, shouldConnect = false, onData, onConnected,
   const fitAddonRef = useRef<FitAddon | null>(null)
   const isConnectingRef = useRef<boolean>(false)
   const connectedServerRef = useRef<string | number | null>(null)
+  const callbacksRef = useRef({ onData, onConnected, onDisconnected, onError })
+
+  useEffect(() => {
+    callbacksRef.current = { onData, onConnected, onDisconnected, onError }
+  }, [onData, onConnected, onDisconnected, onError])
 
   // Initialize terminal and WebSocket connection
   useEffect(() => {
     if (!terminalRef.current || !serverId || !shouldConnect) return
-
-    // Skip if we're already connected to this server
-    if (connectedServerRef.current === serverId) {
-      console.log('Already connected to server', serverId, '- skipping reconnection')
-      return
-    }
-
-    // Skip if we're already connecting
-    if (isConnectingRef.current) {
-      console.log('Already connecting - skipping duplicate connection attempt')
-      return
-    }
-
-    // Skip if terminal already exists
-    if (xtermRef.current) {
-      console.log('Terminal already initialized - skipping recreation')
-      return
-    }
 
     let term: XTerm | null = null
     let fitAddon: FitAddon | null = null
@@ -107,61 +94,77 @@ export function Terminal({ serverId, shouldConnect = false, onData, onConnected,
       xtermRef.current = term
       fitAddonRef.current = fitAddon
 
-      // Show connecting message
-      term.writeln("\x1b[1;36mConnecting to server...\x1b[0m")
-
       // Connect WebSocket if not connected
       const socket = wsService.getSocket() || wsService.connect()
+
+      const handleSSHData = (data: string) => {
+        if (term) {
+          term.write(data)
+        }
+      }
+
+      const handleSSHError = (error: string) => {
+        if (term) {
+          term.writeln(`\r\n\x1b[1;31mError: ${error}\x1b[0m\r\n`)
+        }
+        callbacksRef.current.onError?.(error)
+        isConnectingRef.current = false
+        connectedServerRef.current = null
+      }
 
       const connectSSH = () => {
         // Prevent duplicate connections
         if (isConnectingRef.current) return
         isConnectingRef.current = true
 
-        wsService.connectSSH(
-          String(serverId),
-          (data: string) => {
-            // Write SSH output to terminal
-            if (term) {
-              term.write(data)
-            }
-          },
-          (error: string) => {
-            // Show error in terminal
-            if (term) {
-              term.writeln(`\r\n\x1b[1;31mError: ${error}\x1b[0m\r\n`)
-            }
-            if (onError) onError(error)
-            isConnectingRef.current = false
-            connectedServerRef.current = null
-          }
-        )
+        // Show connecting message
+        if (term) {
+          term.writeln("\x1b[1;36mConnecting to server...\x1b[0m")
+        }
+
+        console.log('[SSH][Terminal] requesting connect to server', serverId)
+        wsService.connectSSH(String(serverId), handleSSHData, handleSSHError)
       }
 
       // Define handlers for UI updates only (not re-registering in wsService)
       const handleSSHConnected = () => {
         isConnectingRef.current = false
         connectedServerRef.current = serverId
+        console.log('[SSH][Terminal] connected event received for', serverId)
         if (term) {
           // Clear the connecting message and show success
           term.write('\r\x1b[K')
           term.writeln('\x1b[1;32m✓ Connected!\x1b[0m')
+          term.focus()
         }
-        if (onConnected) onConnected()
+        callbacksRef.current.onConnected?.()
       }
 
       const handleSSHDisconnected = () => {
+        console.log('[SSH][Terminal] disconnected event received for', serverId)
         isConnectingRef.current = false
         connectedServerRef.current = null
         if (term) {
           term.writeln('\r\n\x1b[1;33m✗ SSH Disconnected\x1b[0m\r\n')
         }
-        if (onDisconnected) onDisconnected()
+        callbacksRef.current.onDisconnected?.()
       }
 
       // Listen for connection status events
       socket.on('ssh:connected', handleSSHConnected)
       socket.on('ssh:disconnected', handleSSHDisconnected)
+
+      // Listen for history (when reconnecting to existing session)
+      socket.on('ssh:history', (data: { history: string }) => {
+        console.log('[SSH][Terminal] history received length', data.history.length)
+        if (term) {
+          // Clear connecting message
+          term.clear()
+          // Write history
+          term.write(data.history)
+          term.focus()
+        }
+      })
 
       // Connect SSH when socket is ready
       if (socket.connected) {
@@ -173,9 +176,7 @@ export function Terminal({ serverId, shouldConnect = false, onData, onConnected,
       // Handle terminal input
       disposable = term.onData((data) => {
         wsService.sendSSHCommand(data)
-        if (onData) {
-          onData(data)
-        }
+        callbacksRef.current.onData?.(data)
       })
 
       // Handle terminal resize
@@ -204,13 +205,9 @@ export function Terminal({ serverId, shouldConnect = false, onData, onConnected,
         if (socket) {
           socket.off('ssh:connected', handleSSHConnected)
           socket.off('ssh:disconnected', handleSSHDisconnected)
-        }
-
-        // Only disconnect if we actually initiated the connection
-        if (connectedServerRef.current === serverId || isConnectingRef.current) {
-          wsService.disconnectSSH(String(serverId))
-          isConnectingRef.current = false
-          connectedServerRef.current = null
+          socket.off('ssh:history')
+          socket.off('ssh:data', handleSSHData)
+          socket.off('ssh:error', handleSSHError)
         }
 
         if (term) {
@@ -218,6 +215,9 @@ export function Terminal({ serverId, shouldConnect = false, onData, onConnected,
           xtermRef.current = null
           fitAddonRef.current = null
         }
+
+        isConnectingRef.current = false
+        connectedServerRef.current = null
       }
     }
 
@@ -241,7 +241,7 @@ export function Terminal({ serverId, shouldConnect = false, onData, onConnected,
         cleanupRef()
       }
     }
-  }, [serverId, shouldConnect, onData, onConnected, onDisconnected, onError])
+  }, [serverId, shouldConnect])
 
   // If no server connected, show placeholder
   if (!serverId) {

@@ -6,7 +6,9 @@ class WebSocketService {
 
     constructor() {
         // Load from config or environment
-        this.url = import.meta.env.VITE_WS_URL || 'http://localhost:3001';
+        this.url =
+            import.meta.env.VITE_WS_URL ||
+            `${window.location.protocol}//${window.location.hostname}:9031`;
     }
 
     connect(token?: string): Socket {
@@ -58,8 +60,6 @@ class WebSocketService {
         // Remove any existing listeners first to prevent duplicates
         this.socket.off('ssh:data');
         this.socket.off('ssh:error');
-        this.socket.off('ssh:connected');
-        this.socket.off('ssh:disconnected');
 
         // Add new listeners
         this.socket.on('ssh:data', onData);
@@ -100,6 +100,67 @@ class WebSocketService {
         this.socket.off('ssh:error');
         this.socket.off('ssh:connected');
         this.socket.off('ssh:disconnected');
+    }
+
+    // RDP namespace
+    connectRDP(serverId: string, onData: (data: any) => void, onError: (error: string) => void) {
+        if (!this.socket) {
+            throw new Error('WebSocket not connected');
+        }
+
+        // Remove any existing listeners first to prevent duplicates
+        this.socket.off('rdp:display');
+        this.socket.off('rdp:error');
+        this.socket.off('rdp:connected');
+        this.socket.off('rdp:disconnected');
+
+        // Add new listeners
+        this.socket.on('rdp:display', onData);
+
+        // Handle error - backend sends {message: string}
+        this.socket.on('rdp:error', (data: { message: string } | string) => {
+            const errorMessage = typeof data === 'string' ? data : data.message;
+            onError(errorMessage);
+        });
+
+        this.socket.on('rdp:connected', () => {
+            console.log(`✓ RDP connected to server ${serverId}`);
+        });
+
+        this.socket.on('rdp:disconnected', () => {
+            console.log(`✗ RDP disconnected from server ${serverId}`);
+        });
+
+        // Emit connection request AFTER setting up listeners
+        this.socket.emit('rdp:connect', { serverId });
+    }
+
+    sendRDPInput(data: { type: string; payload: any }) {
+        if (!this.socket) {
+            throw new Error('WebSocket not connected');
+        }
+
+        this.socket.emit('rdp:input', data);
+    }
+
+    sendRDPResize(width: number, height: number) {
+        if (!this.socket) {
+            throw new Error('WebSocket not connected');
+        }
+
+        this.socket.emit('rdp:resize', { width, height });
+    }
+
+    disconnectRDP(serverId: string) {
+        if (!this.socket) return;
+
+        this.socket.emit('rdp:disconnect', { serverId });
+
+        // Remove all RDP listeners
+        this.socket.off('rdp:display');
+        this.socket.off('rdp:error');
+        this.socket.off('rdp:connected');
+        this.socket.off('rdp:disconnected');
     }
 
     // Metrics namespace

@@ -1,11 +1,13 @@
 import { NavLink } from "react-router-dom"
-import { LayoutDashboard, Terminal, Database, Activity, BarChart3, FileText, Bell, Workflow, Settings, Zap } from "lucide-react"
+import { LayoutDashboard, Terminal, Monitor, Database, Activity, BarChart3, FileText, Bell, Workflow, Settings, Zap, Server } from "lucide-react"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Terminal, label: "SSH Terminal", path: "/ssh" },
+  { icon: Monitor, label: "Remote Desktop", path: "/rdp" },
   { icon: Database, label: "Databases", path: "/database" },
   { icon: Activity, label: "Monitoring", path: "/monitoring" },
+  { icon: Server, label: "Proxmox", path: "/proxmox" },
   { icon: BarChart3, label: "Charts", path: "/charts" },
   { icon: FileText, label: "Logs", path: "/logs" },
   { icon: Bell, label: "Alerts", path: "/alerts" },
@@ -21,7 +23,7 @@ export function Sidebar() {
           <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/50">
             <Zap className="h-5 w-5 text-primary" />
           </div>
-          <span className="text-xl font-bold tracking-tight">ysnockserver</span>
+          <span className="text-l font-bold tracking-tight">Zero45 Dashboard</span>
         </div>
       </div>
 
@@ -31,10 +33,9 @@ export function Sidebar() {
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
-              `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-primary/10 text-primary border border-primary/20"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-white"
+              `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive
+                ? "bg-primary/10 text-primary border border-primary/20"
+                : "text-muted-foreground hover:bg-white/5 hover:text-white"
               }`
             }
           >
@@ -50,7 +51,7 @@ export function Sidebar() {
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-purple-600" />
             <div>
               <p className="text-sm font-medium">Admin User</p>
-              <p className="text-xs text-muted-foreground">admin@ysnockserver.local</p>
+              <p className="text-xs text-muted-foreground">admin@zero45.local</p>
             </div>
           </div>
         </div>

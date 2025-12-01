@@ -10,3 +10,6 @@ sshRouter.get('/servers/:id', sshController.getServer);
 sshRouter.put('/servers/:id', sshController.updateServer);
 sshRouter.delete('/servers/:id', sshController.deleteServer);
 sshRouter.post('/servers/:id/test', sshController.testConnection);
+
+// Session management
+sshRouter.get('/sessions/active', sshController.getActiveSessions);

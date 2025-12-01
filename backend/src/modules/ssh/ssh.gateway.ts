@@ -7,6 +7,20 @@ export function setupSSHGateway(io: SocketIOServer) {
         let currentServerId: string | null = null;
         let isConnecting = false;
 
+        const bindInputHandlers = (stream: any) => {
+            // Avoid stacking listeners when reconnecting
+            socket.removeAllListeners('ssh:input');
+            socket.removeAllListeners('ssh:resize');
+
+            socket.on('ssh:input', (data: string) => {
+                stream.write(data);
+            });
+
+            socket.on('ssh:resize', ({ rows, cols }: { rows: number; cols: number }) => {
+                stream.setWindow(rows, cols, 0, 0);
+            });
+        };
+
         // SSH Connect
         socket.on('ssh:connect', async ({ serverId }: { serverId: string }) => {
             try {
@@ -14,8 +28,11 @@ export function setupSSHGateway(io: SocketIOServer) {
                 const existingSession = sshService.getSession(serverId);
 
                 if (existingSession) {
-                    logger.info(`Reconnecting to existing SSH session for server ${serverId}`);
+                    logger.info(`[SSH][WS] Reconnecting to existing session for server ${serverId} (socket ${socket.id})`);
                     currentServerId = serverId;
+
+                    // Attach this socket to the existing stream
+                    sshService.attachSocketToSession(serverId, socket);
 
                     // Send existing session connected event
                     socket.emit('ssh:connected', { serverId });
@@ -24,26 +41,10 @@ export function setupSSHGateway(io: SocketIOServer) {
                     const history = sshService.getHistory(serverId);
                     if (history.length > 0) {
                         socket.emit('ssh:history', { history: history.join('') });
+                        logger.debug(`[SSH][WS] Sent history (${history.join('').length} chars) to socket ${socket.id}`);
                     }
 
-                    // Attach stream handlers to new socket
-                    const stream = existingSession.stream;
-
-                    // Stream data from SSH to client
-                    stream.on('data', (data: Buffer) => {
-                        const output = data.toString('utf8');
-                        socket.emit('ssh:data', output);
-                    });
-
-                    // Handle input from client
-                    socket.on('ssh:input', (data: string) => {
-                        stream.write(data);
-                    });
-
-                    // Handle resize
-                    socket.on('ssh:resize', ({ rows, cols }: { rows: number; cols: number }) => {
-                        stream.setWindow(rows, cols, 0, 0);
-                    });
+                    bindInputHandlers(existingSession.stream);
 
                     return;
                 }
@@ -60,7 +61,7 @@ export function setupSSHGateway(io: SocketIOServer) {
                 }
 
                 isConnecting = true;
-                logger.info(`SSH connect request for server ${serverId} from ${socket.id}`);
+                logger.info(`[SSH][WS] Connect request for server ${serverId} from ${socket.id}`);
 
                 const conn = await sshService.connect(serverId);
                 currentServerId = serverId;
@@ -79,41 +80,13 @@ export function setupSSHGateway(io: SocketIOServer) {
                         return;
                     }
 
-                    // Create session with history
-                    sshService.createSession(serverId, conn, stream);
+                    // Create session with history and attach current socket
+                    sshService.createSession(serverId, conn, stream, socket);
 
+                    logger.info(`[SSH][WS] Shell opened for server ${serverId}, notifying socket ${socket.id}`);
                     socket.emit('ssh:connected', { serverId });
 
-                    // Stream data from SSH to client and save to history
-                    stream.on('data', (data: Buffer) => {
-                        const output = data.toString('utf8');
-                        socket.emit('ssh:data', output);
-                        // Add to history
-                        sshService.addToHistory(serverId, output);
-                    });
-
-                    stream.on('close', () => {
-                        socket.emit('ssh:disconnected', { serverId });
-                        sshService.removeSession(serverId);
-                        logger.info(`SSH stream closed for server ${serverId}`);
-                    });
-
-                    stream.stderr.on('data', (data: Buffer) => {
-                        const output = data.toString('utf8');
-                        socket.emit('ssh:data', output);
-                        // Add stderr to history as well
-                        sshService.addToHistory(serverId, output);
-                    });
-
-                    // Handle input from client
-                    socket.on('ssh:input', (data: string) => {
-                        stream.write(data);
-                    });
-
-                    // Handle resize
-                    socket.on('ssh:resize', ({ rows, cols }: { rows: number; cols: number }) => {
-                        stream.setWindow(rows, cols, 0, 0);
-                    });
+                    bindInputHandlers(stream);
                 });
             } catch (error: any) {
                 isConnecting = false;
@@ -129,19 +102,26 @@ export function setupSSHGateway(io: SocketIOServer) {
 
         // SSH Disconnect (explicit disconnect - close SSH connection)
         socket.on('ssh:disconnect', ({ serverId }: { serverId: string }) => {
-            if (currentServerId) {
-                sshService.disconnect(currentServerId);
-                sshService.removeSession(currentServerId);
+            if (!serverId) return;
+
+            logger.info(`[SSH][WS] Explicit disconnect for ${serverId} from socket ${socket.id}`);
+            sshService.detachSocketFromSession(serverId, socket.id);
+            sshService.disconnect(serverId);
+
+            if (currentServerId === serverId) {
                 currentServerId = null;
-                socket.emit('ssh:disconnected', { serverId });
-                logger.info(`SSH explicitly disconnected from server ${serverId}`);
+                isConnecting = false;
             }
+
+            socket.emit('ssh:disconnected', { serverId });
+            logger.info(`SSH explicitly disconnected from server ${serverId}`);
         });
 
         // Socket disconnect (client disconnected - keep SSH session alive)
         socket.on('disconnect', () => {
             if (currentServerId) {
-                logger.info(`Client ${socket.id} disconnected, but keeping SSH session alive for server ${currentServerId}`);
+                logger.info(`[SSH][WS] Socket ${socket.id} disconnected, keeping SSH session ${currentServerId} alive`);
+                sshService.detachSocketFromSession(currentServerId, socket.id);
                 // Don't disconnect SSH - keep session alive for reconnection
                 currentServerId = null;
             }

@@ -12,164 +12,97 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Server, Plus, Terminal as TerminalIcon, Globe, HardDrive, Activity, Trash2, Edit, Maximize2, X, RefreshCw } from "lucide-react"
+import { Monitor, Plus, Globe, HardDrive, Activity, Trash2, Edit, Maximize2, X, RefreshCw, Download } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { Terminal } from "@/components/ssh/Terminal"
-import { sshApi } from "@/services/api"
-import { wsService } from "@/services/websocket"
+import { rdpApi } from "@/services/api"
+import { RDPViewer } from "@/components/rdp/RDPViewer"
 
-interface SSHServer {
+interface RDPServer {
   id: string
   name: string
   host: string
   port: number
   username: string
+  domain?: string
   status: "online" | "offline" | "connecting" | "connected"
   lastConnected?: string
   tags?: string[]
 }
 
-export default function SSH() {
+export default function RDP() {
   const { toast } = useToast()
-  const [connectedServer, setConnectedServer] = useState<SSHServer | null>(null)
-  const connectedServerRef = useRef<SSHServer | null>(null)
+  const [connectedServer, setConnectedServer] = useState<RDPServer | null>(null)
+  const connectedServerRef = useRef<RDPServer | null>(null)
   const [shouldConnect, setShouldConnect] = useState(false)
-  const [connectingServerId, setConnectingServerId] = useState<string | null>(null)
-  const connectingServerIdRef = useRef<string | null>(null)
-  const [isTerminalFullscreen, setIsTerminalFullscreen] = useState(false)
-  const [servers, setServers] = useState<SSHServer[]>([])
+  const [guacToken, setGuacToken] = useState<string | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [servers, setServers] = useState<RDPServer[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const terminalCardRef = useRef<HTMLDivElement>(null)
-  const scrollToTerminal = useCallback(() => {
-    terminalCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [])
-
-  useEffect(() => {
-    connectingServerIdRef.current = connectingServerId
-  }, [connectingServerId])
-
-  const refreshServers = useCallback(async (options?: { silent?: boolean }) => {
-    try {
-      const [data, activeSessions] = await Promise.all([
-        sshApi.getServers(),
-        sshApi.getActiveSessions().catch(() => [] as string[]),
-      ])
-
-      const testResults = await Promise.allSettled(
-        data.map(async (server: SSHServer) => {
-          const result = await sshApi.testConnection(server.id)
-          return { serverId: server.id, online: result.success }
-        })
-      )
-
-      const resultsMap = new Map<string, boolean>()
-      testResults.forEach((result) => {
-        if (result.status === 'fulfilled') {
-          resultsMap.set(result.value.serverId, result.value.online)
-        }
-      })
-
-      const activeSessionSet = new Set(activeSessions)
-      const currentConnectedId = connectedServerRef.current?.id
-      if (currentConnectedId) {
-        activeSessionSet.add(currentConnectedId)
-      }
-
-      const updatedServers = data.map((server) => {
-        const isActive = activeSessionSet.has(server.id)
-        const isConnecting = connectingServerIdRef.current === server.id
-        const isOnline = resultsMap.get(server.id) ?? false
-
-        let status: SSHServer['status'] = 'offline'
-        if (isActive) {
-          status = 'connected'
-        } else if (isConnecting) {
-          status = 'connecting'
-        } else if (isOnline) {
-          status = 'online'
-        }
-
-        return { ...server, status }
-      })
-
-      setServers(updatedServers)
-
-      if (activeSessions.length > 0) {
-        const activeServerId = activeSessions[0]
-        const alreadySet = connectedServerRef.current?.id === activeServerId
-        const activeServer = updatedServers.find((s) => s.id === activeServerId)
-
-        if (activeServer && !alreadySet) {
-          setConnectedServer(activeServer)
-          connectedServerRef.current = activeServer
-          setShouldConnect(true)
-          scrollToTerminal()
-
-          if (!options?.silent) {
-            toast({
-              title: "Session Restored",
-              description: `Reconnected to ${activeServer.name}`,
-            })
-          }
-        }
-      }
-
-      return updatedServers
-    } catch (error) {
-      console.error("Failed to load servers:", error)
-      if (!options?.silent) {
-        toast({
-          title: "Error",
-          description: "Failed to load servers from backend",
-          variant: "destructive",
-        })
-      }
-      return []
-    }
-  }, [scrollToTerminal, toast])
-
-  useEffect(() => {
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null
-    let isMounted = true
-
-    const load = async (attempt: number) => {
-      const result = await refreshServers(attempt > 0 ? { silent: true } : undefined)
-      // Retry a couple of times if nothing came back (e.g. auth/storage still rehydrating)
-      if (isMounted && result.length === 0 && attempt < 2) {
-        retryTimeout = setTimeout(() => load(attempt + 1), 800)
-      }
-    }
-
-    load(0)
-
-    // Refresh server status every 30 seconds, but skip if actively connected
-    const interval = setInterval(() => {
-      if (!connectedServerRef.current) {
-        refreshServers({ silent: true })
-      }
-    }, 30000)
-
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-      if (retryTimeout) {
-        clearTimeout(retryTimeout)
-      }
-    }
-  }, [refreshServers])
+  const rdpCardRef = useRef<HTMLDivElement>(null)
 
   const [isAddServerOpen, setIsAddServerOpen] = useState(false)
   const [newServer, setNewServer] = useState({
     name: "",
     host: "",
-    port: 22,
+    port: 3389,
     username: "",
     password: "",
   })
 
+  // Load servers from backend API
+  const loadServers = async () => {
+    try {
+      const data = await rdpApi.getServers()
+      // All servers start as offline - we'll test connectivity next
+      setServers(data)
+
+      // Test TCP connectivity for each server to mark as "online" if port is accessible
+      const testResults = await Promise.allSettled(
+        data.map(async (server: RDPServer) => {
+          try {
+            const result = await rdpApi.testConnection(server.id)
+            return { serverId: server.id, online: result.success }
+          } catch (error) {
+            return { serverId: server.id, online: false }
+          }
+        })
+      )
+
+      // Update server statuses based on test results
+      setServers(prev => prev.map(s => {
+        const testResult = testResults.find(
+          (r) => r.status === 'fulfilled' && r.value.serverId === s.id
+        )
+
+        if (testResult && testResult.status === 'fulfilled') {
+          // Only update if server is currently offline (don't override connecting/connected)
+          if (s.status === 'offline') {
+            return { ...s, status: testResult.value.online ? 'online' as const : 'offline' as const }
+          }
+        }
+
+        return s
+      }))
+
+      return data
+    } catch (error) {
+      console.error("Failed to load servers:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load servers from backend",
+        variant: "destructive",
+      })
+      return []
+    }
+  }
+
+  useEffect(() => {
+    loadServers()
+  }, [])
+
   const handleAddServer = async () => {
     try {
-      const server = await sshApi.createServer({
+      const server = await rdpApi.createServer({
         name: newServer.name,
         host: newServer.host,
         port: newServer.port,
@@ -179,7 +112,7 @@ export default function SSH() {
 
       setServers([...servers, server])
       setIsAddServerOpen(false)
-      setNewServer({ name: "", host: "", port: 22, username: "", password: "" })
+      setNewServer({ name: "", host: "", port: 3389, username: "", password: "" })
 
       toast({
         title: "Server added",
@@ -195,86 +128,107 @@ export default function SSH() {
     }
   }
 
-  const handleConnect = (server: SSHServer) => {
-    // Prevent multiple connections
+  const handleConnect = async (server: RDPServer) => {
     if (server.status === 'connecting' || server.status === 'connected') {
       return
     }
 
-    // Disconnect any previous SSH session before starting a new one
-    if (connectedServerRef.current && connectedServerRef.current.id !== server.id) {
-      wsService.disconnectSSH(connectedServerRef.current.id)
-      setServers(prev => prev.map(s =>
-        s.id === connectedServerRef.current!.id ? { ...s, status: 'offline' as const } : s
-      ))
-    }
-
-    // Update status to connecting
     setServers(prev => prev.map(s =>
       s.id === server.id ? { ...s, status: 'connecting' as const } : s
     ))
 
-    setConnectingServerId(server.id)
-    connectingServerIdRef.current = server.id
-    setConnectedServer(server)
-    connectedServerRef.current = server
-    setShouldConnect(true)
+    setShouldConnect(false)
+    setGuacToken(null)
 
     toast({
       title: "Connecting...",
-      description: `Establishing SSH connection to ${server.name}`,
+      description: `Establishing RDP connection to ${server.name}`,
     })
 
-    scrollToTerminal()
+    try {
+      const { token } = await rdpApi.getGuacToken(server.id)
 
-    // The Terminal component will handle the actual connection via WebSocket
-    // and we'll update the status based on SSH events
+      setGuacToken(token)
+      setConnectedServer(server)
+      connectedServerRef.current = server
+      setShouldConnect(true)
+
+      // Scroll to RDP viewer
+      setTimeout(() => {
+        rdpCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    } catch (error: any) {
+      console.error("Failed to connect RDP:", error)
+      setServers(prev => prev.map(s =>
+        s.id === server.id ? { ...s, status: 'offline' as const } : s
+      ))
+      toast({
+        title: "Connection Error",
+        description: error?.response?.data?.message || "Failed to start RDP session",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleDisconnect = async () => {
     const serverToDisconnect = connectedServerRef.current
 
-    // Clear connection state
     setConnectedServer(null)
     connectedServerRef.current = null
     setShouldConnect(false)
-    setConnectingServerId(null)
-    connectingServerIdRef.current = null
+    setGuacToken(null)
 
-    // Test if server is still accessible (online) or truly offline
     if (serverToDisconnect) {
-      const socket = wsService.getSocket() || wsService.connect()
-      if (socket) {
-        wsService.disconnectSSH(serverToDisconnect.id)
-      }
-
-      // First set to offline temporarily
       setServers(prev => prev.map(s =>
         s.id === serverToDisconnect.id ? { ...s, status: 'offline' as const } : s
       ))
-
-      // Test connectivity - if port is accessible, change to online
-      try {
-        await sshApi.testConnection(serverToDisconnect.id)
-        setServers(prev => prev.map(s =>
-          s.id === serverToDisconnect.id ? { ...s, status: 'online' as const } : s
-        ))
-      } catch (error) {
-        // Server is truly offline, keep as offline
-      }
-
-      await refreshServers({ silent: true })
     }
 
     toast({
       title: "Disconnected",
-      description: "SSH connection closed",
+      description: "RDP connection closed",
     })
   }
 
+  // Stable callbacks to prevent re-renders
+  const handleRDPConnected = useCallback(() => {
+    console.log('RDP onConnected callback triggered')
+    if (connectedServerRef.current) {
+      setServers(prev => prev.map(s =>
+        s.id === connectedServerRef.current!.id ? { ...s, status: 'connected' as const } : s
+      ))
+    }
+  }, [])
+
+  const handleRDPDisconnected = useCallback(() => {
+    if (connectedServerRef.current) {
+      const serverId = connectedServerRef.current.id
+      setServers(prev => prev.map(s =>
+        s.id === serverId ? { ...s, status: 'offline' as const } : s
+      ))
+    }
+  }, [])
+
+  const handleRDPError = useCallback((error: string) => {
+    toast({
+      title: "Connection Error",
+      description: error,
+      variant: "destructive",
+    })
+    if (connectedServerRef.current) {
+      const serverId = connectedServerRef.current.id
+      setServers(prev => prev.map(s =>
+        s.id === serverId ? { ...s, status: 'offline' as const } : s
+      ))
+      setConnectedServer(null)
+      connectedServerRef.current = null
+      setShouldConnect(false)
+    }
+  }, [toast])
+
   const handleDelete = async (id: string) => {
     try {
-      await sshApi.deleteServer(id)
+      await rdpApi.deleteServer(id)
       setServers(servers.filter((s) => s.id !== id))
       toast({
         title: "Server removed",
@@ -290,11 +244,36 @@ export default function SSH() {
     }
   }
 
+  const handleDownloadRDPFile = async (server: RDPServer) => {
+    try {
+      const blob = await rdpApi.downloadRDPFile(server.id)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${server.name || 'server'}.rdp`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+
+      toast({
+        title: "RDP file ready",
+        description: `Abra ${server.name} com o cliente RDP do seu sistema.`,
+      })
+    } catch (error) {
+      console.error("Failed to download RDP file:", error)
+      toast({
+        title: "Download failed",
+        description: "Could not generate the RDP file. Try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleRefreshServers = async () => {
     setIsRefreshing(true)
     try {
-      // Reload servers, ping and recover any active session
-      await refreshServers({ silent: true })
+      await loadServers()
       toast({
         title: "Servers refreshed",
         description: "Server status has been updated.",
@@ -316,10 +295,10 @@ export default function SSH() {
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold tracking-tight mb-2">
-            SSH Terminal<span className="text-muted-foreground"></span>
+            Remote Desktop (RDP)
           </h1>
           <p className="text-muted-foreground text-lg">
-            Acesso remoto aos seus servidores via terminal web.
+            Acesso remoto a servidores Windows via navegador web.
           </p>
         </div>
 
@@ -340,81 +319,81 @@ export default function SSH() {
                 Add Server
               </Button>
             </DialogTrigger>
-          <DialogContent className="bg-black/95 border-white/10">
-            <DialogHeader>
-              <DialogTitle>Add New SSH Server</DialogTitle>
-              <DialogDescription>
-                Enter the connection details for your SSH server.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Server Name</Label>
-                <Input
-                  id="name"
-                  placeholder="My Server"
-                  value={newServer.name}
-                  onChange={(e) => setNewServer({ ...newServer, name: e.target.value })}
-                  className="bg-white/5 border-white/10"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="host">Host / IP Address</Label>
-                <Input
-                  id="host"
-                  placeholder="192.168.1.100 or server.example.com"
-                  value={newServer.host}
-                  onChange={(e) => setNewServer({ ...newServer, host: e.target.value })}
-                  className="bg-white/5 border-white/10"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+            <DialogContent className="bg-black/95 border-white/10">
+              <DialogHeader>
+                <DialogTitle>Add New RDP Server</DialogTitle>
+                <DialogDescription>
+                  Enter the connection details for your Windows server.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="port">Port</Label>
+                  <Label htmlFor="name">Server Name</Label>
                   <Input
-                    id="port"
-                    type="number"
-                    value={newServer.port}
-                    onChange={(e) => setNewServer({ ...newServer, port: parseInt(e.target.value) })}
+                    id="name"
+                    placeholder="Windows Server"
+                    value={newServer.name}
+                    onChange={(e) => setNewServer({ ...newServer, name: e.target.value })}
                     className="bg-white/5 border-white/10"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="host">Host / IP Address</Label>
                   <Input
-                    id="username"
-                    placeholder="root"
-                    value={newServer.username}
-                    onChange={(e) => setNewServer({ ...newServer, username: e.target.value })}
+                    id="host"
+                    placeholder="192.168.1.100 or server.example.com"
+                    value={newServer.host}
+                    onChange={(e) => setNewServer({ ...newServer, host: e.target.value })}
                     className="bg-white/5 border-white/10"
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="port">Port</Label>
+                    <Input
+                      id="port"
+                      type="number"
+                      value={newServer.port}
+                      onChange={(e) => setNewServer({ ...newServer, port: parseInt(e.target.value) })}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="username">Username</Label>
+                    <Input
+                      id="username"
+                      placeholder="Administrator"
+                      value={newServer.username}
+                      onChange={(e) => setNewServer({ ...newServer, username: e.target.value })}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="RDP password"
+                    value={newServer.password}
+                    onChange={(e) => setNewServer({ ...newServer, password: e.target.value })}
+                    className="bg-white/5 border-white/10"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Password will be encrypted and stored securely
+                  </p>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="SSH password"
-                  value={newServer.password}
-                  onChange={(e) => setNewServer({ ...newServer, password: e.target.value })}
-                  className="bg-white/5 border-white/10"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Password will be encrypted and stored securely
-                </p>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setIsAddServerOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddServer} className="bg-primary hover:bg-primary/90">
+                  Add Server
+                </Button>
               </div>
-            </div>
-            <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setIsAddServerOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleAddServer} className="bg-primary hover:bg-primary/90">
-                Add Server
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
         </div>
       </header>
 
@@ -427,7 +406,7 @@ export default function SSH() {
                 <p className="text-sm font-medium text-muted-foreground">Total Servers</p>
                 <p className="text-2xl font-bold mt-2">{servers.length}</p>
               </div>
-              <Server className="h-8 w-8 text-primary" />
+              <Monitor className="h-8 w-8 text-primary" />
             </div>
           </CardContent>
         </Card>
@@ -469,7 +448,7 @@ export default function SSH() {
                   {servers.filter((s) => s.status === "connected").length}
                 </p>
               </div>
-              <TerminalIcon className="h-8 w-8 text-blue-500" />
+              <Monitor className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
@@ -488,19 +467,20 @@ export default function SSH() {
                 server={server}
                 onConnect={() => handleConnect(server)}
                 onDelete={() => handleDelete(server.id)}
+                onDownload={() => handleDownloadRDPFile(server)}
               />
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Terminal */}
-      <Card ref={terminalCardRef} className={`glass-card border-0 bg-black/90 transition-all ${isTerminalFullscreen ? 'fixed inset-4 z-50' : ''}`}>
+      {/* RDP Viewer */}
+      <Card ref={rdpCardRef} className={`glass-card border-0 bg-black/90 transition-all ${isFullscreen ? 'fixed inset-4 z-50' : ''}`}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <TerminalIcon className="h-5 w-5 text-primary" />
-              Terminal
+              <Monitor className="h-5 w-5 text-primary" />
+              Remote Desktop
               {connectedServer && (
                 <Badge variant="outline" className="border-green-500/50 text-green-500">
                   Connected: {connectedServer.name}
@@ -523,7 +503,7 @@ export default function SSH() {
                 variant="outline"
                 size="icon"
                 className="border-white/10 hover:bg-white/5"
-                onClick={() => setIsTerminalFullscreen(!isTerminalFullscreen)}
+                onClick={() => setIsFullscreen(!isFullscreen)}
               >
                 <Maximize2 className="h-4 w-4" />
               </Button>
@@ -531,50 +511,24 @@ export default function SSH() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Terminal
+          <RDPViewer
             serverId={connectedServer?.id}
             shouldConnect={shouldConnect}
-            onData={(data) => {
-              console.log("Terminal data:", data)
-            }}
+            guacToken={guacToken || undefined}
             onConnected={() => {
-              // Update server status to connected when SSH connects
-              console.log('SSH onConnected callback triggered for server:', connectedServerRef.current?.id)
-              setConnectingServerId(null)
-              connectingServerIdRef.current = null
+              console.log('RDP onConnected callback triggered')
               if (connectedServerRef.current) {
-                setServers(prev => {
-                  const updated = prev.map(s =>
-                    s.id === connectedServerRef.current!.id ? { ...s, status: 'connected' as const } : s
-                  )
-                  console.log('Updated servers after SSH connect:', updated)
-                  return updated
-                })
+                setServers(prev => prev.map(s =>
+                  s.id === connectedServerRef.current!.id ? { ...s, status: 'connected' as const } : s
+                ))
               }
             }}
-            onDisconnected={async () => {
-              setConnectingServerId(null)
-              connectingServerIdRef.current = null
-              // Test if server is still accessible (online) or truly offline
+            onDisconnected={() => {
               if (connectedServerRef.current) {
                 const serverId = connectedServerRef.current.id
-                setConnectedServer(null)
-                connectedServerRef.current = null
-                setShouldConnect(false)
-                // First set to offline temporarily
                 setServers(prev => prev.map(s =>
                   s.id === serverId ? { ...s, status: 'offline' as const } : s
                 ))
-
-                // Test connectivity - if port is accessible, change to online
-                try {
-                  await sshApi.testConnection(serverId)
-                  setServers(prev => prev.map(s =>
-                    s.id === serverId ? { ...s, status: 'online' as const } : s
-                  ))
-                } catch (error) {
-                  // Server is truly offline, keep as offline
-                }
               }
             }}
             onError={(error) => {
@@ -583,18 +537,15 @@ export default function SSH() {
                 description: error,
                 variant: "destructive",
               })
-              // Update server status to offline on error and clear connection
               if (connectedServerRef.current) {
                 const serverId = connectedServerRef.current.id
-                setConnectingServerId(null)
-                connectingServerIdRef.current = null
                 setServers(prev => prev.map(s =>
                   s.id === serverId ? { ...s, status: 'offline' as const } : s
                 ))
-                // Clear connection state to prevent reconnection attempts
                 setConnectedServer(null)
                 connectedServerRef.current = null
                 setShouldConnect(false)
+                setGuacToken(null)
               }
             }}
           />
@@ -608,10 +559,12 @@ function ServerCard({
   server,
   onConnect,
   onDelete,
+  onDownload,
 }: {
-  server: SSHServer
+  server: RDPServer
   onConnect: () => void
   onDelete: () => void
+  onDownload: () => void
 }) {
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -643,29 +596,6 @@ function ServerCard({
     }
   }
 
-  const formatLastConnected = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
-
-    // Format as "Nov 30, 7:24 PM"
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    })
-  }
-
   return (
     <div className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
       <div className="flex items-center gap-4">
@@ -685,9 +615,6 @@ function ServerCard({
               <Globe className="h-3 w-3" />
               {server.username}@{server.host}:{server.port}
             </span>
-            {server.lastConnected && (
-              <span className="text-xs">Last Access: {formatLastConnected(server.lastConnected)}</span>
-            )}
           </div>
         </div>
       </div>
@@ -709,12 +636,20 @@ function ServerCard({
           <Trash2 className="h-4 w-4" />
         </Button>
         <Button
+          variant="outline"
+          size="sm"
+          className="border-white/10 hover:bg-white/5"
+          onClick={onDownload}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+        <Button
           onClick={onConnect}
           disabled={server.status === "connecting" || server.status === "connected"}
           className="bg-primary hover:bg-primary/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           size="sm"
         >
-          <TerminalIcon className="h-4 w-4 mr-2" />
+          <Monitor className="h-4 w-4 mr-2" />
           {server.status === "connected" ? "Connected" : server.status === "connecting" ? "Connecting..." : "Connect"}
         </Button>
       </div>

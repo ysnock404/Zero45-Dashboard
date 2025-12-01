@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import net from 'net';
+import { Socket } from 'socket.io';
 import { configManager } from '../../shared/config/config';
 import { AppError } from '../../shared/middleware/errorHandler';
 import { logger } from '../../shared/utils/logger';
@@ -63,6 +64,12 @@ interface SSHSession {
     stream: any;
     history: string[];
     maxHistoryLines: number;
+    forwardSocket?: Socket;
+    listeners?: {
+        data: (data: Buffer) => void;
+        stderr: (data: Buffer) => void;
+        close: () => void;
+    };
 }
 
 class SSHService {
@@ -248,6 +255,7 @@ class SSHService {
         // Check if already connected
         const existing = this.connections.get(id);
         if (existing) {
+            logger.debug(`[SSH] Reusing existing connection for ${id}`);
             return existing;
         }
 
@@ -257,18 +265,18 @@ class SSHService {
         return new Promise((resolve, reject) => {
             conn
                 .on('ready', () => {
-                    logger.info(`SSH connected to ${server.name}`);
+                    logger.info(`[SSH] Connected to ${server.name} (${server.host}:${server.port})`);
                     this.connections.set(id, conn);
                     this.updateServerStatus(id, 'online', new Date().toISOString());
                     resolve(conn);
                 })
                 .on('error', (err) => {
-                    logger.error(`SSH connection error for ${server.name}:`, err);
+                    logger.error(`[SSH] Connection error for ${server.name}: ${err.message}`);
                     this.updateServerStatus(id, 'offline');
                     reject(err);
                 })
                 .on('close', () => {
-                    logger.info(`SSH disconnected from ${server.name}`);
+                    logger.info(`[SSH] Disconnected from ${server.name}`);
                     this.connections.delete(id);
                     this.updateServerStatus(id, 'offline');
                 })
@@ -285,10 +293,19 @@ class SSHService {
     }
 
     disconnect(id: string): void {
+        const session = this.sessions.get(id);
+        if (session) {
+            session.forwardSocket = undefined;
+        }
+
         const conn = this.connections.get(id);
         if (conn) {
             conn.end();
             this.connections.delete(id);
+        }
+
+        if (session) {
+            this.removeSession(id);
         }
     }
 
@@ -297,13 +314,51 @@ class SSHService {
     }
 
     // Session management methods
-    createSession(id: string, connection: Client, stream: any): void {
-        this.sessions.set(id, {
+    createSession(id: string, connection: Client, stream: any, forwardSocket?: Socket): void {
+        const session: SSHSession = {
             connection,
             stream,
             history: [],
             maxHistoryLines: 1000, // Keep last 1000 lines
-        });
+            forwardSocket,
+        };
+
+        this.sessions.set(id, session);
+
+        logger.info(`[SSH] Creating session for server ${id} (forward to socket ${forwardSocket?.id || 'none'})`);
+
+        // Attach listeners once per SSH session and forward output to the currently attached socket
+        const dataHandler = (data: Buffer) => {
+            const output = data.toString('utf8');
+            this.addToHistory(id, output);
+            logger.debug(`[SSH] data ${id} length=${output.length}`);
+            session.forwardSocket?.emit('ssh:data', output);
+        };
+
+        const stderrHandler = (data: Buffer) => {
+            const output = data.toString('utf8');
+            this.addToHistory(id, output);
+            logger.debug(`[SSH] stderr ${id} length=${output.length}`);
+            session.forwardSocket?.emit('ssh:data', output);
+        };
+
+        const closeHandler = () => {
+            logger.info(`[SSH] Stream closed for ${id}`);
+            session.forwardSocket?.emit('ssh:disconnected', { serverId: id });
+            this.removeSession(id);
+            this.disconnect(id);
+            logger.info(`[SSH] Session closed for server ${id}`);
+        };
+
+        stream.on('data', dataHandler);
+        stream.stderr?.on('data', stderrHandler);
+        stream.on('close', closeHandler);
+
+        session.listeners = {
+            data: dataHandler,
+            stderr: stderrHandler,
+            close: closeHandler,
+        };
     }
 
     getSession(id: string): SSHSession | undefined {
@@ -326,8 +381,36 @@ class SSHService {
         return session ? session.history : [];
     }
 
+    attachSocketToSession(id: string, socket: Socket): void {
+        const session = this.sessions.get(id);
+        if (!session) return;
+
+        logger.info(`[SSH] Attaching socket ${socket.id} to session ${id}`);
+        session.forwardSocket = socket;
+    }
+
+    detachSocketFromSession(id: string, socketId?: string): void {
+        const session = this.sessions.get(id);
+        if (!session) return;
+
+        if (!socketId || session.forwardSocket?.id === socketId) {
+            logger.info(`[SSH] Detaching socket ${socketId || session.forwardSocket?.id} from session ${id}`);
+            session.forwardSocket = undefined;
+        }
+    }
+
     removeSession(id: string): void {
+        const session = this.sessions.get(id);
+
+        if (session?.listeners) {
+            logger.info(`[SSH] Removing session listeners for ${id}`);
+            session.stream.off('data', session.listeners.data);
+            session.stream.stderr?.off('data', session.listeners.stderr);
+            session.stream.off('close', session.listeners.close);
+        }
+
         this.sessions.delete(id);
+        this.connections.delete(id);
     }
 
     getActiveSessions(): string[] {

@@ -90,6 +90,17 @@ const ConfigSchema = z.object({
         apiTesting: z.boolean(),
         automation: z.boolean(),
     }),
+    proxmox: z.object({
+        baseUrl: z.string(),
+        tokenId: z.string(),
+        tokenSecret: z.string(),
+        verifySsl: z.boolean().default(true),
+    }),
+    guacamole: z.object({
+        host: z.string(),
+        port: z.number(),
+        encryptionKey: z.string(),
+    }),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -174,6 +185,14 @@ class ConfigManager {
 
     getFeaturesConfig() {
         return this.get().features;
+    }
+
+    getProxmoxConfig() {
+        return this.get().proxmox;
+    }
+
+    getGuacamoleConfig() {
+        return this.get().guacamole;
     }
 }
 
