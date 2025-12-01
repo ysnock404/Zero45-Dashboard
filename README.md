@@ -63,21 +63,21 @@ Zero45 Dashboard is a personal project to create a unified control center for my
    - Frontend: http://localhost:5173
    - Backend: http://localhost:3001
 
-## 🛠️ Gerenciamento do Serviço
+## 🛠️ Service Management
 
-O Zero45 Dashboard roda como um serviço systemd chamado `zero45-dashboard.service`. Utilize os comandos abaixo para ligar/desligar:
+Zero45 Dashboard runs as a systemd service called `zero45-dashboard.service`. Use:
 
 ```bash
-sudo systemctl start zero45-dashboard.service     # Inicia frontend e backend
-sudo systemctl stop zero45-dashboard.service      # Para tudo com segurança
-sudo systemctl restart zero45-dashboard.service   # Reinicia aplicando novas configs
-sudo systemctl status zero45-dashboard.service    # Mostra status e últimos logs
+sudo systemctl start zero45-dashboard.service     # Start frontend + backend
+sudo systemctl stop zero45-dashboard.service      # Stop everything safely
+sudo systemctl restart zero45-dashboard.service   # Apply new configs
+sudo systemctl status zero45-dashboard.service    # Status and recent logs
 ```
 
-- Os logs escritos pelo serviço ficam em `logs/systemd.log` e `logs/systemd.err.log`.
-- Os scripts `./start.sh` e `./stop.sh` continuam sendo usados internamente pelo systemd.
-  - Quando você rodar os scripts manualmente, eles apenas delegam para `systemctl` para manter o estado sincronizado.
-  - Se precisar iniciar/parar fora do systemd por algum motivo especial, rode o serviço via `systemctl` e ele chamará os scripts automaticamente.
+- Logs go to `logs/systemd.log` and `logs/systemd.err.log`.
+- The scripts `./start.sh` and `./stop.sh` are used internally by systemd.
+  - When you run them manually, they just delegate to `systemctl` to keep state in sync.
+  - If you must start/stop outside systemd, call the service via `systemctl`; it will invoke the scripts automatically.
 
 ---
 
