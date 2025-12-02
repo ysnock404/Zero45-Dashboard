@@ -279,9 +279,6 @@ npx prisma migrate dev --name init
 - Real-time metrics updates
 - Substituir mock data
 
-#### 8. **Rate Limiting** ⏱️ 2-3 horas
-- Configurar express-rate-limit
-- Aplicar em endpoints sensíveis
 
 #### 9. **Docker Setup** ⏱️ 6-8 horas
 - Dockerfiles (frontend + backend)
@@ -537,10 +534,7 @@ systemctl status zero45-dashboard.service
    systemctl start redis-server
    ```
 
-2. **Rate Limiting** (recomendado)
-   - Proteger endpoints de login/refresh contra brute-force
-
-3. **Testing**
+2. **Testing**
    - Testar login no frontend
    - Verificar que tokens JWT funcionam
    - Testar criação de servers SSH/RDP com passwords encriptados

@@ -701,30 +701,34 @@ Precisa implementar:
 - ❌ Encrypt RDP passwords
 - ❌ Usar AES-256-GCM
 
-### 3️⃣ **SETUP PRISMA + POSTGRESQL** (8-12h)
-- ❌ Configurar Prisma schema
-- ❌ Criar models (User, SSHServer, RDPConnection, etc)
-- ❌ Migrations
-- ❌ Substituir JSON files por DB real
+### 3️⃣ **SETUP PRISMA + SQLITE** (COMPLETO - só auth)
+- ✅ Configurar Prisma schema
+- ✅ Criar models (User, RefreshToken, Session)
+- ✅ Migrations
+- ✅ **SSH/RDP ficam em JSON** (decisão arquitetural)
 
-### 4️⃣ **RATE LIMITING** (2-3h)
-- ❌ Configurar express-rate-limit
-- ❌ Aplicar em endpoints sensíveis
+### 4️⃣ **RATE LIMITING** (CANCELADO)
+- ❌ **Não será implementado** (decisão de não adicionar)
 
 ---
 
 ## 🎯 PRÓXIMOS PASSOS IMEDIATOS (Prioridade 1)
 
-1. ✅ **Resolver 3 TODOs de Auth** (JWT verification)
-2. ✅ **Implementar encryption** para passwords
-3. ✅ **Setup Prisma** e migrar de JSON files para DB
-4. ✅ **Implementar rate limiting**
-5. ❌ **Database Module** (próxima grande feature)
-6. ❌ **Monitoring Module básico**
+1. ✅ **Resolver 3 TODOs de Auth** (JWT verification) - **COMPLETO**
+2. ✅ **Implementar encryption** para passwords - **COMPLETO**
+3. ✅ **Setup Prisma** (auth only, SSH/RDP em JSON) - **COMPLETO**
+4. ❌ **Database Module** (próxima grande feature)
+5. ❌ **Frontend Auth real** (conectar ao backend)
+6. ❌ **Dashboard real-time** (consumir metrics)
 
 ---
 
 **Última atualização:** 2025-12-02
 **Versão:** 2.0 - Análise corrigida com itens realmente implementados
 
-**NOTA IMPORTANTE:** Este projeto tem ~50-55% do backend implementado, focado nas features core (SSH, RDP, Proxmox, Host). Falta implementar: Database real (Prisma), Encryption, 7 módulos completos (Database, API, Monitoring, Logs, Alerts, Automation, Metrics completos), Testing, e melhorias de segurança.
+**NOTA IMPORTANTE:**
+- ✅ Backend ~65-70% implementado (após security fixes)
+- ✅ Features core funcionais: SSH, RDP, Proxmox, Host com encryption
+- ✅ Auth completo: Prisma + JWT + Redis blacklisting
+- ✅ **Decisão arquitetural:** SSH/RDP em JSON (não em DB)
+- ❌ Falta: Database Module, Frontend Auth, Dashboard real-time, 5 módulos (API Testing, Monitoring, Logs, Alerts, Automation)
