@@ -34,6 +34,13 @@ class HostService {
         return { rx_sec: Math.max(0, rx_sec), tx_sec: Math.max(0, tx_sec) };
     }
 
+    private baseDiskName(raw: string | null | undefined) {
+        if (!raw) return null;
+        const name = raw.replace('/dev/', '').trim();
+        const match = name.match(/(nvme\d+n\d+|sd[a-z]+|vd[a-z]+|hd[a-z]+|md\d+)/);
+        return match ? match[1] : null;
+    }
+
     private async readPowerWattsFromCommand() {
         const command =
             process.env.HOST_WATTS_COMMAND || process.env.PROXMOX_WATTS_COMMAND || process.env.WATTS_COMMAND;
@@ -116,8 +123,161 @@ class HostService {
         }
     }
 
+    private async readLsblk() {
+        try {
+            const { stdout } = await this.execAsync('lsblk -J -b -o NAME,TYPE,PKNAME,MOUNTPOINT,MOUNTPOINTS,FSTYPE,SIZE', {
+                timeout: 2000,
+            });
+            const parsed = JSON.parse(stdout || '{}');
+            const devices: any[] = parsed?.blockdevices || [];
+
+            const flat: Record<string, any> = {};
+            const walk = (nodes: any[]) => {
+                nodes.forEach((node) => {
+                    flat[node.name] = {
+                        type: node.type,
+                        pkname: node.pkname || null,
+                        size: Number(node.size) || 0,
+                        mountpoint: node.mountpoint || null,
+                        mountpoints: node.mountpoints || [],
+                    };
+                    if (Array.isArray(node.children)) walk(node.children);
+                });
+            };
+            walk(devices);
+
+            return { devices, flat };
+        } catch (err) {
+            logger.warn('lsblk failed, disk usage will be limited', err);
+            return { devices: [], flat: {} as Record<string, any> };
+        }
+    }
+
+    private async readLvmMaps() {
+        try {
+            const [pvsRaw, lvsRaw] = await Promise.all([
+                this.execAsync(
+                    'pvs --noheadings --separator "," -o pv_name,vg_name,pv_size --units b --nosuffix',
+                    { timeout: 2000 }
+                ),
+                this.execAsync(
+                    'lvs --noheadings --separator "," -o lv_name,vg_name,lv_size,data_percent,lv_attr --units b --nosuffix',
+                    { timeout: 2000 }
+                ),
+            ]);
+
+            const pvList = (pvsRaw.stdout || '')
+                .trim()
+                .split('\n')
+                .map((line) => line.split(',').map((v) => v.trim()))
+                .filter((parts) => parts.length >= 3 && parts[1])
+                .map(([pvName, vgName, sizeStr]) => ({
+                    pvName,
+                    vgName,
+                    size: Number(sizeStr) || 0,
+                }));
+
+            const lvList = (lvsRaw.stdout || '')
+                .trim()
+                .split('\n')
+                .map((line) => line.split(',').map((v) => v.trim()))
+                .filter((parts) => parts.length >= 5 && parts[1])
+                .map(([lvName, vgName, lvSizeStr, dataPctStr, lvAttr]) => ({
+                    lvName,
+                    vgName,
+                    lvSize: Number(lvSizeStr) || 0,
+                    dataPercent: Number(dataPctStr),
+                    lvAttr,
+                }))
+                .filter((lv) => lv.lvAttr?.startsWith('t') && Number.isFinite(lv.dataPercent));
+
+            return { pvList, lvList };
+        } catch (err) {
+            logger.warn('pvs/lvs failed, LVM usage unavailable', err);
+            return { pvList: [] as any[], lvList: [] as any[] };
+        }
+    }
+
+    private async computePhysicalDiskUsage(fsList: any[]) {
+        const [{ devices, flat }, { pvList, lvList }] = await Promise.all([this.readLsblk(), this.readLvmMaps()]);
+
+        const disks = (devices || []).filter((d) => d.type === 'disk');
+        const diskUsage: Record<string, { name: string; size: number; used: number }> = {};
+        disks.forEach((disk: any) => {
+            diskUsage[disk.name] = { name: disk.name, size: Number(disk.size) || 0, used: 0 };
+        });
+
+        const findRootDisk = (name: string | null | undefined): string | null => {
+            if (!name) return null;
+            let current = name;
+            const safety = new Set<string>();
+            while (current && !safety.has(current)) {
+                safety.add(current);
+                const info = flat[current];
+                if (!info) break;
+                if (info.type === 'disk') return current;
+                current = info.pkname || null;
+            }
+            return this.baseDiskName(current);
+        };
+
+        const mountToDevice: Record<string, string> = {};
+        Object.entries(flat).forEach(([name, info]: [string, any]) => {
+            const points = [];
+            if (info.mountpoint) points.push(info.mountpoint);
+            if (Array.isArray(info.mountpoints)) points.push(...info.mountpoints.filter(Boolean));
+            points.forEach((mp) => {
+                if (!mountToDevice[mp]) mountToDevice[mp] = name;
+            });
+        });
+
+        (fsList || []).forEach((entry) => {
+            const mount = entry?.mount;
+            const fsDevice = entry?.fs ? String(entry.fs).replace('/dev/', '') : null;
+            const fromMount = mount ? mountToDevice[mount] : null;
+            const deviceName = fromMount || fsDevice;
+            const disk = findRootDisk(deviceName || null);
+            if (disk && diskUsage[disk]) {
+                diskUsage[disk].used += Number(entry.used) || 0;
+            }
+        });
+
+        const vgToPvs: Record<string, { disk: string; size: number }[]> = {};
+        pvList.forEach((pv) => {
+            const disk = findRootDisk(this.baseDiskName(pv.pvName));
+            if (!disk) return;
+            if (!vgToPvs[pv.vgName]) vgToPvs[pv.vgName] = [];
+            vgToPvs[pv.vgName].push({ disk, size: pv.size });
+        });
+
+        lvList.forEach((lv) => {
+            const pvs = vgToPvs[lv.vgName];
+            if (!pvs || pvs.length === 0) return;
+
+            const poolUsed = (lv.lvSize * lv.dataPercent) / 100;
+            const totalPvSize = pvs.reduce((acc, pv) => acc + (pv.size || 0), 0);
+
+            pvs.forEach((pv) => {
+                const share = totalPvSize > 0 ? (poolUsed * pv.size) / totalPvSize : 0;
+                if (diskUsage[pv.disk]) {
+                    diskUsage[pv.disk].used += share;
+                }
+            });
+        });
+
+        return Object.values(diskUsage).map((d) => {
+            const used = d.size > 0 ? Math.min(d.used, d.size) : d.used;
+            return {
+                name: d.name,
+                size: d.size,
+                used,
+                usePct: d.size > 0 ? +(((used || 0) / d.size) * 100).toFixed(2) : null,
+            };
+        });
+    }
+
     private async collectSample() {
-        const [load, mem, fs, net, cpuTemp] = await Promise.all([
+        const [load, mem, fsList, net, cpuTemp] = await Promise.all([
             si.currentLoad(),
             si.mem(),
             si.fsSize(),
@@ -127,7 +287,7 @@ class HostService {
 
         const ts = Date.now() / 1000;
 
-        const disks = (fs || [])
+        const disks = (fsList || [])
             .filter((d) => d.mount === '/' || d.mount === '/var' || d.size > 0)
             .map((d) => ({
                 fs: d.fs,
@@ -136,6 +296,8 @@ class HostService {
                 used: d.used,
                 use: d.use,
             }));
+
+        const diskUsage = await this.computePhysicalDiskUsage(fsList || []);
 
         const netDetails = (net || []).map((n) => {
             const { rx_sec, tx_sec } = this.calcNetDelta({
@@ -182,6 +344,7 @@ class HostService {
                 swapTotal: mem.swaptotal,
                 swapUsed: mem.swapused,
             },
+            diskUsage,
             disks,
             network: {
                 interfaces: netDetails,

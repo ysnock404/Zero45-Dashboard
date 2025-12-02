@@ -100,3 +100,54 @@
 .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
   background: rgba(240, 0, 60, 0.7);
 }
+
+/* Global scrollbar styling (red theme) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(240, 0, 60, 0.7) rgba(255, 255, 255, 0.06);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(240, 0, 60, 0.9), rgba(240, 0, 60, 0.6));
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.04);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(240, 0, 60, 1), rgba(240, 0, 60, 0.8));
+}
+
+/* Meter animation for inline bars */
+.meter-bar {
+  transition: width 0.45s ease;
+  background-size: 200% 100%;
+  animation: meterFlow 6s ease-in-out infinite;
+}
+
+@keyframes meterFlow {
+  0% {
+    background-position: 0% 0%;
+  }
+  50% {
+    background-position: 100% 0%;
+  }
+  100% {
+    background-position: 0% 0%;
+  }
+}
+
+/* Remove outline when clicando nos gráficos Recharts */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none !important;
+}
