@@ -18,10 +18,14 @@ interface ClaudeSession {
 class ClaudeTerminalService {
     private session: ClaudeSession | null = null;
 
-    private spawnProcess(): pty.IPty {
-        logger.info('[ClaudeTerminal] Spawning claude CLI process');
+    private spawnProcess(useContinue: boolean): pty.IPty {
+        logger.info(`[ClaudeTerminal] Spawning claude CLI process (continue=${useContinue})`);
 
-        const proc = pty.spawn('claude', ['--continue', '--model', 'claude-sonnet-5', '--effort', 'medium'], {
+        const args = ['--model', 'claude-sonnet-5', '--effort', 'medium'];
+        if (useContinue) args.unshift('--continue');
+
+        const spawnedAt = Date.now();
+        const proc = pty.spawn('claude', args, {
             name: 'xterm-256color',
             cols: 80,
             rows: 24,
@@ -44,6 +48,21 @@ class ClaudeTerminalService {
 
         proc.onExit(({ exitCode }) => {
             logger.info(`[ClaudeTerminal] Process exited with code ${exitCode}`);
+
+            // `--continue` fails fast (no PTY interaction happened yet) when there's
+            // no prior conversation for this cwd, e.g. a freshly (re)started
+            // container. Fall back to a clean session instead of surfacing that
+            // as a dead terminal.
+            const failedFast = exitCode !== 0 && Date.now() - spawnedAt < 5000;
+            if (useContinue && failedFast) {
+                logger.info('[ClaudeTerminal] --continue found no prior session, retrying fresh');
+                const retryProc = this.spawnProcess(false);
+                if (this.session) {
+                    this.session.proc = retryProc;
+                }
+                return;
+            }
+
             if (this.session) {
                 for (const socket of this.session.sockets) {
                     socket.emit('claude:exited', { exitCode });
@@ -57,7 +76,7 @@ class ClaudeTerminalService {
 
     getOrCreateSession(): ClaudeSession {
         if (!this.session) {
-            const proc = this.spawnProcess();
+            const proc = this.spawnProcess(true);
             this.session = {
                 proc,
                 history: [],

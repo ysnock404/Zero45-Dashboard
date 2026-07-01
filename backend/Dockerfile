@@ -20,6 +20,10 @@ COPY backend/ ./
 ENV DATABASE_URL="file:/app/data/dev.db"
 RUN npx prisma generate
 
+# Skip claude's first-run onboarding wizard (theme/trust/login-method prompts) —
+# auth itself comes from CLAUDE_CODE_OAUTH_TOKEN at runtime, not this file.
+RUN mkdir -p /root && cp docker-claude-config.json /root/.claude.json
+
 ENV NODE_ENV=production
 ENV PORT=9031
 EXPOSE 9031
