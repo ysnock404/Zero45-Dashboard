@@ -20,11 +20,12 @@ class WebSocketService {
             auth: {
                 token,
             },
-            // Prefer WebSocket. Long-polling is unreliable behind Cloudflare
-            // (it retries the held-open long-poll GET, and engine.io kills the
-            // session when it sees two concurrent GETs), so go straight to the
-            // WebSocket transport, which Cloudflare proxies cleanly.
-            transports: ['websocket'],
+            // Prefer WebSocket (Cloudflare proxies it cleanly and it's the
+            // right transport for a live terminal), but keep long-polling as a
+            // fallback for networks where WebSocket is blocked. nginx now runs
+            // the polling path with proxy_buffering off so the fallback is
+            // usable behind Cloudflare too.
+            transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 5,
