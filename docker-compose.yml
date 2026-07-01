@@ -15,6 +15,7 @@ services:
       ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
       CORS_ORIGINS: "https://dashboard.ysnock.dev"
+      CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN}"
     volumes:
       - zero45_dbdata:/app/data
     networks:

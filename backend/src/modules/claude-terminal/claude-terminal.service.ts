@@ -3,7 +3,9 @@ import { Socket } from 'socket.io';
 import path from 'path';
 import { logger } from '../../shared/utils/logger';
 
-const REPO_ROOT = path.resolve(__dirname, '../../../../');
+// backend/ root (works both in dev, run via tsx from backend/src/..., and in
+// the production container, where only backend/ is copied to /app).
+const WORK_DIR = path.resolve(__dirname, '../../..');
 const MAX_HISTORY_CHARS = 200_000;
 
 interface ClaudeSession {
@@ -23,7 +25,7 @@ class ClaudeTerminalService {
             name: 'xterm-256color',
             cols: 80,
             rows: 24,
-            cwd: REPO_ROOT,
+            cwd: WORK_DIR,
             env: process.env as Record<string, string>,
         });
 

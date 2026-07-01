@@ -3,8 +3,11 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Prisma engines need openssl on Alpine
-RUN apk add --no-cache openssl
+# Prisma engines need openssl on Alpine; python3/make/g++ needed to build
+# node-pty's native addon (no prebuilt binary for linux-arm64); claude CLI
+# is installed globally so the assistant terminal module can spawn it.
+RUN apk add --no-cache openssl python3 make g++ \
+    && npm install -g @anthropic-ai/claude-code
 
 # Install deps (inc. devDeps: needed for tsc build + tsx seeds)
 COPY backend/package*.json ./
