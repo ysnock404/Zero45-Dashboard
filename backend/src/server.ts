@@ -13,6 +13,7 @@ import { sshRouter } from './modules/ssh/ssh.routes';
 import { rdpRouter } from './modules/rdp/rdp.routes';
 import { proxmoxRouter } from './modules/proxmox/proxmox.routes';
 import { hostRouter } from './modules/host/host.routes';
+import { agencyRouter } from './modules/agency/agency.routes';
 import { setupSSHGateway } from './modules/ssh/ssh.gateway';
 import { setupRDPGateway } from './modules/rdp/rdp.gateway';
 import { setupGuacamoleServer } from './modules/rdp/guac.server';
@@ -94,6 +95,7 @@ class Server {
         this.app.use('/api/rdp', rdpRouter);
         this.app.use('/api/proxmox', proxmoxRouter);
         this.app.use('/api/host', hostRouter);
+        this.app.use('/api/agency', agencyRouter);
 
         // 404 handler
         this.app.use((req, res) => {

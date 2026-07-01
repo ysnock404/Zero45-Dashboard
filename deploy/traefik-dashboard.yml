@@ -1,0 +1,27 @@
+http:
+  routers:
+    zero45-dashboard-router-web:
+      rule: Host(`dashboard.ysnock.dev`)
+      service: zero45-dashboard-service
+      middlewares:
+        - redirect-to-https
+      entryPoints:
+        - web
+    zero45-dashboard-router-websecure:
+      rule: Host(`dashboard.ysnock.dev`)
+      service: zero45-dashboard-service
+      middlewares: []
+      entryPoints:
+        - websecure
+      tls: {}
+  services:
+    zero45-dashboard-service:
+      loadBalancer:
+        servers:
+          - url: http://zero45-dashboard-web:80
+        passHostHeader: true
+
+tls:
+  certificates:
+    - certFile: /etc/dokploy/traefik/dynamic/certificates/dashboard.ysnock.dev.crt
+      keyFile: /etc/dokploy/traefik/dynamic/certificates/dashboard.ysnock.dev.key

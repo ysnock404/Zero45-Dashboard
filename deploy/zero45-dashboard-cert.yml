@@ -1,0 +1,4 @@
+tls:
+  certificates:
+    - certFile: /etc/dokploy/traefik/dynamic/certificates/dashboard.ysnock.dev.crt
+      keyFile: /etc/dokploy/traefik/dynamic/certificates/dashboard.ysnock.dev.key

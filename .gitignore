@@ -42,6 +42,10 @@ logs/
 backend/data/
 backend/logs/
 backend/config.json
+deploy/certs/
+.env
+.dok_key
+.cf_token
 backend/ssh-servers.json
 backend/rdp-servers.json
 backend/*.log

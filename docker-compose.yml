@@ -1,0 +1,42 @@
+# Zero45 Dashboard — production stack (attaches to Dokploy's Traefik network)
+services:
+  zero45-dashboard-backend:
+    container_name: zero45-dashboard-backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "9031"
+      DATABASE_URL: "file:/app/data/dev.db"
+      JWT_SECRET: "${JWT_SECRET}"
+      JWT_REFRESH_SECRET: "${JWT_REFRESH_SECRET}"
+      ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD}"
+      CORS_ORIGINS: "https://dashboard.ysnock.dev"
+    volumes:
+      - zero45_dbdata:/app/data
+    networks:
+      - dokploy-network
+
+  zero45-dashboard-web:
+    container_name: zero45-dashboard-web
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: "https://dashboard.ysnock.dev"
+        VITE_WS_URL: "https://dashboard.ysnock.dev"
+    restart: unless-stopped
+    depends_on:
+      - zero45-dashboard-backend
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
+
+volumes:
+  zero45_dbdata:

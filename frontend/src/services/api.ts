@@ -244,6 +244,54 @@ export const proxmoxApi = {
     },
 };
 
+// Agency Cashflow API
+const qs = (params?: Record<string, any>) => {
+    if (!params) return '';
+    const clean = Object.fromEntries(
+        Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+    );
+    const s = new URLSearchParams(clean as any).toString();
+    return s ? `?${s}` : '';
+};
+
+export const agencyApi = {
+    getSummary: async (year?: number) =>
+        (await apiClient.get(`/agency/summary${qs({ year })}`)).data.data,
+    getCashflow: async (year?: number) =>
+        (await apiClient.get(`/agency/cashflow${qs({ year })}`)).data.data,
+    getForecast: async (months?: number) =>
+        (await apiClient.get(`/agency/forecast${qs({ months })}`)).data.data,
+    getReports: async (filters?: Record<string, any>) =>
+        (await apiClient.get(`/agency/reports${qs(filters)}`)).data.data,
+
+    getConfig: async () => (await apiClient.get('/agency/config')).data.data,
+    updateConfig: async (data: any) => (await apiClient.put('/agency/config', data)).data.data,
+
+    listProjects: async () => (await apiClient.get('/agency/projects')).data.data,
+    createProject: async (data: any) => (await apiClient.post('/agency/projects', data)).data.data,
+    updateProject: async (id: string, data: any) =>
+        (await apiClient.put(`/agency/projects/${id}`, data)).data.data,
+    deleteProject: async (id: string) =>
+        (await apiClient.delete(`/agency/projects/${id}`)).data.data,
+
+    listTransactions: async (filters?: Record<string, any>) =>
+        (await apiClient.get(`/agency/transactions${qs(filters)}`)).data.data,
+    createTransaction: async (data: any) =>
+        (await apiClient.post('/agency/transactions', data)).data.data,
+    updateTransaction: async (id: string, data: any) =>
+        (await apiClient.put(`/agency/transactions/${id}`, data)).data.data,
+    deleteTransaction: async (id: string) =>
+        (await apiClient.delete(`/agency/transactions/${id}`)).data.data,
+    generateRecurring: async (upToDate?: string) =>
+        (await apiClient.post('/agency/transactions/recurring/generate', { upToDate })).data.data,
+    exportCSV: async (filters?: Record<string, any>) => {
+        const response = await apiClient.get(`/agency/transactions/export${qs(filters)}`, {
+            responseType: 'blob',
+        });
+        return response.data as Blob;
+    },
+};
+
 export const hostApi = {
     getMetrics: async () => {
         const response = await apiClient.get('/host/metrics');

@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 // User model - para autenticação
@@ -60,4 +60,68 @@ model Session {
   @@index([userId])
   @@index([token])
   @@map("sessions")
+}
+
+// ============================================================
+// AGENCY CASHFLOW MODULE
+// ============================================================
+
+// Projetos da agência (clientes / fontes de receita recorrente)
+model AgencyProject {
+  id            String   @id @default(uuid())
+  name          String                       // Projeto
+  client        String?                      // Cliente
+  model         String   @default("Mensal")  // Hora | Mensal | Anual | Único | Variável
+  baseValue     Float    @default(0)         // Valor Base
+  unit          String?                      // Unidade (ex: €/h, €)
+  frequency     String?                      // Frequência (Único|Diário|Semanal|Mensal|Anual|Contínuo)
+  hoursPerDay   Float    @default(0)         // Horas/dia
+  daysPerMonth  Float    @default(0)         // Dias/mês
+  active        Boolean  @default(true)      // Ativo
+  notes         String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  transactions  AgencyTransaction[]
+
+  @@map("agency_projects")
+}
+
+// Transações (receitas e despesas) — valor negativo = despesa/withdraw
+model AgencyTransaction {
+  id          String   @id @default(uuid())
+  date        DateTime                        // Data
+  projectId   String?                         // ligação ao projeto
+  projectName String?                         // fallback / texto livre
+  client      String?                         // Cliente
+  type        String   @default("Despesa")    // Receita | Despesa
+  category    String?                         // Categoria (Domínio, Subscrição, Pagamento...)
+  value       Float    @default(0)            // Valor (negativo = despesa)
+  status      String   @default("Pago")       // Pago | Pendente | Previsto
+  recurrence  String   @default("Único")      // Único|Diário|Semanal|Mensal|Anual|Contínuo
+  notes       String?
+  generated   Boolean  @default(false)        // criada automaticamente por recorrência
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     AgencyProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([projectId])
+  @@map("agency_transactions")
+}
+
+// Configuração única do módulo (linha singleton com id = "default")
+model AgencyConfig {
+  id                String   @id @default("default")
+  currency          String   @default("€")
+  defaultHoursPerDay Float   @default(24)
+  defaultDaysPerMonth Float  @default(30)
+  monthStart        DateTime?
+  monthEnd          DateTime?
+  updatedAt         DateTime @updatedAt
+
+  @@map("agency_config")
 }
