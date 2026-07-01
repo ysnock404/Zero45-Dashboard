@@ -75,6 +75,7 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
       term.loadAddon(fitAddon)
       term.loadAddon(webLinksAddon)
       term.open(terminalRef.current)
+      term.write('\x1b[38;5;246mA iniciar sessão Claude Code (pode demorar 10-15s na primeira vez)...\x1b[0m')
 
       setTimeout(() => {
         fitAddon?.fit()
@@ -86,7 +87,12 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
       // that the server immediately rejects.
       const socket = (wsService.getSocket()?.connected && wsService.getSocket()) || wsService.connect(accessTokenRef.current || undefined)
 
+      let placeholderCleared = false
       const handleData = (data: string) => {
+        if (!placeholderCleared) {
+          placeholderCleared = true
+          term?.clear()
+        }
         term?.write(data)
       }
 
@@ -106,6 +112,7 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
 
       socket.on('claude:connected', handleConnected)
       socket.on('claude:history', (data: { history: string }) => {
+        placeholderCleared = true
         term?.clear()
         term?.write(data.history)
         term?.focus()
