@@ -16,6 +16,7 @@ import { hostRouter } from './modules/host/host.routes';
 import { agencyRouter } from './modules/agency/agency.routes';
 import { setupSSHGateway } from './modules/ssh/ssh.gateway';
 import { setupRDPGateway } from './modules/rdp/rdp.gateway';
+import { setupClaudeTerminalGateway } from './modules/claude-terminal/claude-terminal.gateway';
 import { setupGuacamoleServer } from './modules/rdp/guac.server';
 
 class Server {
@@ -144,6 +145,9 @@ class Server {
 
         // Setup RDP Gateway
         setupRDPGateway(this.io);
+
+        // Setup Claude Terminal Gateway
+        setupClaudeTerminalGateway(this.io);
 
         // Setup Guacamole bridge (shares HTTP server)
         setupGuacamoleServer(this.httpServer);

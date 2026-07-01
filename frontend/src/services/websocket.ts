@@ -163,6 +163,37 @@ class WebSocketService {
         this.socket.off('rdp:disconnected');
     }
 
+    // Claude Terminal namespace
+    connectClaudeTerminal(onData: (data: string) => void, onError: (error: string) => void) {
+        if (!this.socket) {
+            throw new Error('WebSocket not connected');
+        }
+
+        this.socket.off('claude:data');
+        this.socket.off('claude:error');
+
+        this.socket.on('claude:data', onData);
+        this.socket.on('claude:error', (data: { message: string } | string) => {
+            const errorMessage = typeof data === 'string' ? data : data.message;
+            onError(errorMessage);
+        });
+
+        this.socket.emit('claude:connect');
+    }
+
+    sendClaudeInput(data: string) {
+        if (!this.socket) {
+            throw new Error('WebSocket not connected');
+        }
+
+        this.socket.emit('claude:input', data);
+    }
+
+    resizeClaudeTerminal(cols: number, rows: number) {
+        if (!this.socket) return;
+        this.socket.emit('claude:resize', { cols, rows });
+    }
+
     // Metrics namespace
     subscribeMetrics(callback: (data: any) => void) {
         if (!this.socket) {

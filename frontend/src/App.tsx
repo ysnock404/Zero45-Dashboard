@@ -14,6 +14,7 @@ import Automation from "@/pages/Automation"
 import Settings from "@/pages/Settings"
 import Proxmox from "@/pages/Proxmox"
 import Agency from "@/pages/Agency"
+import ClaudeTerminal from "@/pages/ClaudeTerminal"
 import Login from "@/pages/Login"
 import NotFound from "@/pages/NotFound"
 
@@ -32,6 +33,7 @@ function App() {
         >
           <Route index element={<Dashboard />} />
           <Route path="agency" element={<Agency />} />
+          <Route path="assistant" element={<ClaudeTerminal />} />
           <Route path="ssh" element={<SSH />} />
           <Route path="rdp" element={<RDP />} />
           <Route path="database" element={<Database />} />

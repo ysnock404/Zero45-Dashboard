@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom"
-import { LayoutDashboard, Terminal, Monitor, Database, Activity, BarChart3, FileText, Bell, Workflow, Settings, Zap, Server, Wallet } from "lucide-react"
+import { LayoutDashboard, Terminal, Monitor, Database, Activity, BarChart3, FileText, Bell, Workflow, Settings, Zap, Server, Wallet, Bot } from "lucide-react"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: Wallet, label: "Agência", path: "/agency" },
+  { icon: Bot, label: "Assistente", path: "/assistant" },
   { icon: Terminal, label: "SSH Terminal", path: "/ssh" },
   { icon: Monitor, label: "Remote Desktop", path: "/rdp" },
   { icon: Database, label: "Databases", path: "/database" },
