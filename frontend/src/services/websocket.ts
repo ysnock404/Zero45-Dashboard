@@ -20,6 +20,12 @@ class WebSocketService {
             auth: {
                 token,
             },
+            // The WebSocket upgrade attempt gets killed somewhere in the
+            // Cloudflare/Traefik chain in front of this app, which tears down
+            // the whole connection instead of falling back to polling
+            // gracefully — causing a reconnect storm. Long-polling alone is
+            // reliable here, so skip the upgrade attempt entirely.
+            transports: ['polling'],
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 5,
