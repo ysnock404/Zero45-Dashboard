@@ -4,7 +4,6 @@ import { FitAddon } from "@xterm/addon-fit"
 import { WebLinksAddon } from "@xterm/addon-web-links"
 import "@xterm/xterm/css/xterm.css"
 import { wsService } from "@/services/websocket"
-import { useAuthStore } from "@/stores/authStore"
 
 interface ClaudeXTermProps {
   onConnected?: () => void
@@ -15,12 +14,6 @@ interface ClaudeXTermProps {
 export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const callbacksRef = useRef({ onConnected, onError })
-  const accessToken = useAuthStore((state) => state.accessToken)
-  const accessTokenRef = useRef(accessToken)
-
-  useEffect(() => {
-    accessTokenRef.current = accessToken
-  }, [accessToken])
 
   useEffect(() => {
     callbacksRef.current = { onConnected, onError }
@@ -81,12 +74,6 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
         fitAddon?.fit()
       }, 0)
 
-      // Always (re)connect with the real JWT — don't race ProtectedRoute's own
-      // connect() call, which can lose if this component mounts first (e.g. a
-      // hard refresh directly on /assistant), leaving an unauthenticated socket
-      // that the server immediately rejects.
-      const socket = (wsService.getSocket()?.connected && wsService.getSocket()) || wsService.connect(accessTokenRef.current || undefined)
-
       let placeholderCleared = false
       const handleData = (data: string) => {
         if (!placeholderCleared) {
@@ -106,25 +93,50 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
         callbacksRef.current.onConnected?.()
       }
 
-      const connect = () => {
-        wsService.connectClaudeTerminal(handleData, handleError)
-      }
-
-      socket.on('claude:connected', handleConnected)
-      socket.on('claude:history', (data: { history: string }) => {
+      const handleHistory = (data: { history: string }) => {
         placeholderCleared = true
         term?.clear()
         term?.write(data.history)
         term?.focus()
-      })
-      socket.on('claude:exited', () => {
-        term?.writeln('\r\n\x1b[1;33m✗ Sessão terminada\x1b[0m\r\n')
-      })
+      }
 
-      if (socket.connected) {
-        connect()
+      const handleExited = () => {
+        term?.writeln('\r\n\x1b[1;33m✗ Sessão terminada\x1b[0m\r\n')
+      }
+
+      // Never create our own socket here — only ever attach to the single
+      // authenticated connection ProtectedRoute owns. Creating a second one
+      // from this component raced ProtectedRoute's connect() and could leave
+      // this component's listeners on a different socket than the one that
+      // actually emitted claude:connect.
+      let boundSocket: ReturnType<typeof wsService.getSocket> = null
+      let pollHandle: ReturnType<typeof setInterval> | null = null
+
+      const attach = (socket: NonNullable<ReturnType<typeof wsService.getSocket>>) => {
+        boundSocket = socket
+        socket.on('claude:connected', handleConnected)
+        socket.on('claude:history', handleHistory)
+        socket.on('claude:exited', handleExited)
+
+        const connect = () => wsService.connectClaudeTerminal(handleData, handleError)
+        if (socket.connected) {
+          connect()
+        } else {
+          socket.once('connect', connect)
+        }
+      }
+
+      const existing = wsService.getSocket()
+      if (existing) {
+        attach(existing)
       } else {
-        socket.once('connect', connect)
+        pollHandle = setInterval(() => {
+          const socket = wsService.getSocket()
+          if (socket) {
+            if (pollHandle) clearInterval(pollHandle)
+            attach(socket)
+          }
+        }, 150)
       }
 
       disposable = term.onData((data) => {
@@ -143,15 +155,15 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
       return () => {
         isMounted = false
         window.removeEventListener("resize", handleResize)
+        if (pollHandle) clearInterval(pollHandle)
         disposable?.dispose()
 
-        const socket = wsService.getSocket()
-        if (socket) {
-          socket.off('claude:data', handleData)
-          socket.off('claude:error', handleError)
-          socket.off('claude:connected', handleConnected)
-          socket.off('claude:history')
-          socket.off('claude:exited')
+        if (boundSocket) {
+          boundSocket.off('claude:data', handleData)
+          boundSocket.off('claude:error', handleError)
+          boundSocket.off('claude:connected', handleConnected)
+          boundSocket.off('claude:history', handleHistory)
+          boundSocket.off('claude:exited', handleExited)
         }
 
         term?.dispose()
