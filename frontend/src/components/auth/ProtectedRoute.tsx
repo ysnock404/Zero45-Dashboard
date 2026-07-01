@@ -9,19 +9,21 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  const accessToken = useAuthStore((state) => state.accessToken)
 
   useEffect(() => {
-    if (isAuthenticated && accessToken) {
-      // Connect WebSocket with JWT token
-      wsService.connect(accessToken)
+    if (isAuthenticated) {
+      // Connect the single shared WebSocket. wsService reads the JWT lazily and
+      // refreshes it on expiry, so we must NOT re-run this on every token change
+      // — tearing the socket down would orphan listeners other pages (the Claude
+      // terminal) registered on it.
+      wsService.connect()
     }
 
     return () => {
-      // Disconnect WebSocket when leaving protected routes
+      // Only disconnect when actually leaving the authenticated area.
       wsService.disconnect()
     }
-  }, [isAuthenticated, accessToken])
+  }, [isAuthenticated])
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />

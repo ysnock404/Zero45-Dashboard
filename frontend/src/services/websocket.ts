@@ -1,8 +1,10 @@
 import { io, Socket } from 'socket.io-client';
+import { useAuthStore } from '@/stores/authStore';
 
 class WebSocketService {
     private socket: Socket | null = null;
     private url: string;
+    private refreshing = false;
 
     constructor() {
         // Load from config or environment
@@ -11,15 +13,20 @@ class WebSocketService {
             `${window.location.protocol}//${window.location.hostname}:9031`;
     }
 
-    connect(token?: string): Socket {
-        if (this.socket?.connected) {
+    connect(_token?: string): Socket {
+        // Reuse the single socket instance across the app's lifetime. Recreating
+        // it (the old behaviour) orphaned every listener other components had
+        // registered — e.g. the Claude terminal — whenever the token changed.
+        if (this.socket) {
+            if (!this.socket.connected) this.socket.connect();
             return this.socket;
         }
 
         this.socket = io(this.url, {
-            auth: {
-                token,
-            },
+            // Read the JWT lazily on every (re)connection attempt so a token
+            // that refreshed mid-session is picked up automatically, instead of
+            // being frozen at the value passed on the first connect.
+            auth: (cb) => cb({ token: useAuthStore.getState().accessToken || undefined }),
             // Prefer WebSocket (Cloudflare proxies it cleanly and it's the
             // right transport for a live terminal), but keep long-polling as a
             // fallback for networks where WebSocket is blocked. nginx now runs
@@ -28,7 +35,7 @@ class WebSocketService {
             transports: ['websocket', 'polling'],
             reconnection: true,
             reconnectionDelay: 1000,
-            reconnectionAttempts: 5,
+            reconnectionAttempts: Infinity,
         });
 
         this.socket.on('connect', () => {
@@ -39,8 +46,19 @@ class WebSocketService {
             console.log('✗ WebSocket disconnected');
         });
 
-        this.socket.on('error', (error) => {
-            console.error('WebSocket error:', error);
+        this.socket.on('connect_error', async (error) => {
+            // The access token is short-lived (15m). When it expires the
+            // handshake fails with "Authentication failed" — refresh it once and
+            // reconnect; the lazy auth callback above will send the new token.
+            const message = String(error?.message || '').toLowerCase();
+            if (message.includes('auth') && !this.refreshing) {
+                this.refreshing = true;
+                const ok = await useAuthStore.getState().refreshAccessToken();
+                this.refreshing = false;
+                if (ok) {
+                    this.socket?.connect();
+                }
+            }
         });
 
         return this.socket;

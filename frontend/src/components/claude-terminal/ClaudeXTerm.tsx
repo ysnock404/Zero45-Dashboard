@@ -112,17 +112,20 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
       let boundSocket: ReturnType<typeof wsService.getSocket> = null
       let pollHandle: ReturnType<typeof setInterval> | null = null
 
+      const requestSession = () => wsService.connectClaudeTerminal(handleData, handleError)
+
       const attach = (socket: NonNullable<ReturnType<typeof wsService.getSocket>>) => {
         boundSocket = socket
         socket.on('claude:connected', handleConnected)
         socket.on('claude:history', handleHistory)
         socket.on('claude:exited', handleExited)
 
-        const connect = () => wsService.connectClaudeTerminal(handleData, handleError)
+        // Re-request the session on every (re)connection — after a token
+        // refresh the socket reconnects with a new id, so we must re-attach to
+        // the backend session (which replays history) rather than sit idle.
+        socket.on('connect', requestSession)
         if (socket.connected) {
-          connect()
-        } else {
-          socket.once('connect', connect)
+          requestSession()
         }
       }
 
@@ -130,6 +133,9 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
       if (existing) {
         attach(existing)
       } else {
+        // ProtectedRoute owns the socket; if it isn't up yet (e.g. hard refresh
+        // straight onto /assistant), make sure it gets created, then attach.
+        wsService.connect()
         pollHandle = setInterval(() => {
           const socket = wsService.getSocket()
           if (socket) {
@@ -164,6 +170,7 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
           boundSocket.off('claude:connected', handleConnected)
           boundSocket.off('claude:history', handleHistory)
           boundSocket.off('claude:exited', handleExited)
+          boundSocket.off('connect', requestSession)
         }
 
         term?.dispose()
