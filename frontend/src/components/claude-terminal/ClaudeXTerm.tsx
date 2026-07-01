@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit"
 import { WebLinksAddon } from "@xterm/addon-web-links"
 import "@xterm/xterm/css/xterm.css"
 import { wsService } from "@/services/websocket"
+import { useAuthStore } from "@/stores/authStore"
 
 interface ClaudeXTermProps {
   onConnected?: () => void
@@ -14,6 +15,12 @@ interface ClaudeXTermProps {
 export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProps) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const callbacksRef = useRef({ onConnected, onError })
+  const accessToken = useAuthStore((state) => state.accessToken)
+  const accessTokenRef = useRef(accessToken)
+
+  useEffect(() => {
+    accessTokenRef.current = accessToken
+  }, [accessToken])
 
   useEffect(() => {
     callbacksRef.current = { onConnected, onError }
@@ -73,7 +80,11 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
         fitAddon?.fit()
       }, 0)
 
-      const socket = wsService.getSocket() || wsService.connect()
+      // Always (re)connect with the real JWT — don't race ProtectedRoute's own
+      // connect() call, which can lose if this component mounts first (e.g. a
+      // hard refresh directly on /assistant), leaving an unauthenticated socket
+      // that the server immediately rejects.
+      const socket = (wsService.getSocket()?.connected && wsService.getSocket()) || wsService.connect(accessTokenRef.current || undefined)
 
       const handleData = (data: string) => {
         term?.write(data)
