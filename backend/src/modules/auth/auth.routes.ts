@@ -10,3 +10,4 @@ authRouter.post('/refresh', authController.refreshToken);
 // Protected routes
 authRouter.get('/me', authController.getMe);
 authRouter.post('/logout', authController.logout);
+authRouter.post('/change-password', authController.changePassword);

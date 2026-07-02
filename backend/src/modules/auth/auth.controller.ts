@@ -91,6 +91,43 @@ class AuthController {
         }
     }
 
+    async changePassword(req: Request, res: Response) {
+        try {
+            const authHeader = req.headers.authorization;
+            if (!authHeader || !authHeader.startsWith('Bearer ')) {
+                throw new AppError('No token provided', 401);
+            }
+
+            const { currentPassword, newPassword } = req.body;
+            if (!currentPassword || !newPassword) {
+                throw new AppError('Current password and new password are required', 400);
+            }
+
+            const token = authHeader.split(' ')[1];
+            const decoded = authService.verifyAccessToken(token);
+
+            await authService.changePassword(decoded.userId, currentPassword, newPassword);
+
+            logger.info(`Password changed: ${decoded.username}`);
+
+            res.json({
+                status: 'success',
+                message: 'Password changed successfully',
+            });
+        } catch (error) {
+            if (error instanceof AppError) {
+                return res.status(error.statusCode).json({
+                    status: 'error',
+                    message: error.message,
+                });
+            }
+            res.status(500).json({
+                status: 'error',
+                message: 'Internal server error',
+            });
+        }
+    }
+
     async logout(req: Request, res: Response) {
         try {
             // ✅ RESOLVED TODO: Invalidate token

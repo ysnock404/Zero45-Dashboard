@@ -249,6 +249,37 @@ class AuthService {
     }
 
     /**
+     * Change password for the authenticated user
+     */
+    async changePassword(userId: string, currentPassword: string, newPassword: string) {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            throw new AppError('User not found', 404);
+        }
+
+        const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isPasswordValid) {
+            throw new AppError('Current password is incorrect', 401);
+        }
+
+        if (newPassword.length < 8) {
+            throw new AppError('New password must be at least 8 characters long', 400);
+        }
+
+        const hashedPassword = await this.hashPassword(newPassword);
+        await prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedPassword },
+        });
+
+        // Invalidate all other sessions/refresh tokens for this user
+        await prisma.session.deleteMany({ where: { userId } });
+        await prisma.refreshToken.deleteMany({ where: { userId } });
+
+        logger.info(`Password changed for user: ${user.username}`);
+    }
+
+    /**
      * Get expiration date from duration string (15m, 7d, etc)
      */
     private getExpirationDate(duration: string): Date {
