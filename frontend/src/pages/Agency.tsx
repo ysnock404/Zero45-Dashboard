@@ -533,6 +533,9 @@ function AiLogsTab() {
 // ===================================================================
 const emptyProject = { name: "", client: "", model: "Mensal", baseValue: "", unit: "€", hoursPerDay: "", daysPerMonth: "", active: true, notes: "" }
 
+const CADENCIA: Record<string, string> = { Hora: "por hora", "Diário": "por dia", Semanal: "por semana", Mensal: "por mês", Anual: "por ano", "Único": "único" }
+const cadenceLabel = (p: any) => CADENCIA[p.model] || (p.frequency ? CADENCIA[p.frequency] || p.frequency.toLowerCase() : "")
+
 function ProjectsTab({ projects, currency, reload }: any) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
@@ -582,7 +585,10 @@ function ProjectsTab({ projects, currency, reload }: any) {
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>{p.client || "—"}</TableCell>
                   <TableCell><Badge variant="outline" className="border-white/20">{p.model}</Badge></TableCell>
-                  <TableCell className="text-right">{p.baseValue} {p.unit || ""}</TableCell>
+                  <TableCell className="text-right">
+                    {p.baseValue} {p.unit || ""}
+                    {cadenceLabel(p) && <span className="text-muted-foreground text-xs"> {cadenceLabel(p)}</span>}
+                  </TableCell>
                   <TableCell className="text-right">
                     {p.monthlyForecast ? (
                       <>
