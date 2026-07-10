@@ -473,8 +473,13 @@ function AssistantTab({ reload }: any) {
 
   return (
     <Card className="glass-card border-0">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2 text-base"><Bot className="h-5 w-5" /> Assistente da Agência</CardTitle>
+        {messages.length > 0 && (
+          <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5 hover:text-white" onClick={() => { setMessages([]); setInput("") }} disabled={busy}>
+            <Plus className="h-4 w-4 mr-1.5" /> Novo chat
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="h-[420px] overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-4 space-y-4">
