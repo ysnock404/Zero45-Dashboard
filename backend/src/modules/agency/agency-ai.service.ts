@@ -25,12 +25,28 @@ O QUE PODES FAZER (tools):
 - Consultar resumo/KPIs, listar/criar/atualizar/apagar transações, listar/criar/atualizar/apagar projetos.
 - Quando o utilizador reportar algo em linguagem natural ("fiz 100€ hoje", "gastei 30 em hosting"), regista diretamente com a tool certa — sem pedir confirmação, a não ser que falte informação essencial (valor ou tipo).
 - Antes de apagar ou atualizar, se não tiveres o id, lista primeiro para o encontrar. Confirma com o utilizador antes de apagar se houver ambiguidade.
+- NUNCA inventes ids: usa apenas ids devolvidos por list_projects/list_transactions nesta conversa. Para ligar a um projeto podes passar o nome em projectName.
+- Só afirmes que algo foi criado/apagado depois de a tool devolver sucesso. Se uma tool falhar, diz ao utilizador o que falhou.
 
 O QUE NÃO PODES FAZER:
 - Nada fora do módulo da agência (sem SSH, sem servidores, sem outras páginas).
 - Não inventes dados: se não sabes, usa as tools para consultar.
 
 Depois de agir, responde numa frase curta a confirmar o que foi feito (com o valor e tipo). Todas as tuas ações ficam registadas nos logs do AI.`;
+
+// Aceita id real, ou resolve por nome (o modelo às vezes manda o nome no
+// campo projectId, ou um id inventado — sem isto rebenta a foreign key).
+async function resolveProjectRef(args: any) {
+    const ref = args.projectId || args.projectName;
+    if (!ref) return args;
+    const projects = await prisma.agencyProject.findMany();
+    const byId = projects.find((p) => p.id === args.projectId);
+    if (byId) return args;
+    const q = String(ref).toLowerCase().trim();
+    const byName = projects.find((p) => p.name.toLowerCase() === q)
+        || projects.find((p) => p.name.toLowerCase().includes(q) || q.includes(p.name.toLowerCase()));
+    return { ...args, projectId: byName?.id ?? null, projectName: byName ? undefined : args.projectName ?? String(ref) };
+}
 
 // ---------------- tools ----------------
 
@@ -80,7 +96,7 @@ const TOOLS = [
             },
             required: ['date', 'type', 'value'],
         },
-        run: (a: any) => svc.createTransaction(a),
+        run: async (a: any) => svc.createTransaction(await resolveProjectRef(a)),
         mutating: true,
     },
     {
