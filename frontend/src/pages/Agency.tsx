@@ -439,13 +439,23 @@ function md(text: string) {
   return out
 }
 
+const CHAT_KEY = "agency-ai-chat"
+
 function AssistantTab({ reload }: any) {
-  const [messages, setMessages] = useState<ChatMsg[]>([])
+  const [messages, setMessages] = useState<ChatMsg[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem(CHAT_KEY) || "[]") } catch { return [] }
+  })
   const [input, setInput] = useState("")
   const [busy, setBusy] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }) }, [messages, busy])
+  useEffect(() => {
+    try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(messages)) } catch { /* storage cheio */ }
+  }, [messages])
+
+  useEffect(() => {
+    if (messages.length > 0 || busy) bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+  }, [messages, busy])
 
   const send = async () => {
     const text = input.trim()
@@ -468,7 +478,7 @@ function AssistantTab({ reload }: any) {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="h-[420px] overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-4 space-y-4">
-          {messages.length === 0 && !busy && (
+          {messages.length === 0 && !busy ? (
             <div className="h-full flex flex-col items-center justify-center text-center gap-3 text-muted-foreground">
               <Bot className="h-10 w-10 opacity-40" />
               <div className="text-sm max-w-xs">
@@ -480,7 +490,8 @@ function AssistantTab({ reload }: any) {
                 </div>
               </div>
             </div>
-          )}
+          ) : (
+          <>
           {messages.map((m, i) => (
             <div key={i} className={`flex gap-2.5 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               {m.role === "assistant" && (
@@ -511,6 +522,8 @@ function AssistantTab({ reload }: any) {
             </div>
           )}
           <div ref={bottomRef} />
+          </>
+          )}
         </div>
         <div className="flex gap-2">
           <Input
