@@ -531,11 +531,23 @@ function AssistantTab({ reload }: any) {
           )}
         </div>
         <div className="flex gap-2">
-          <Input
+          <Textarea
             value={input} onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") send() }}
-            placeholder="Escreve uma mensagem…" disabled={busy}
-            className="bg-black/50 border-white/10"
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return
+              // Enter envia; Shift/Ctrl/Cmd+Enter faz nova linha
+              if (!e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); send(); return }
+              if (e.ctrlKey || e.metaKey) {
+                // browsers não inserem nova linha com Ctrl/Cmd+Enter — fazemos à mão
+                e.preventDefault()
+                const el = e.currentTarget
+                const { selectionStart: s, selectionEnd: f } = el
+                setInput(input.slice(0, s) + "\n" + input.slice(f))
+                requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = s + 1 })
+              }
+            }}
+            placeholder="Escreve uma mensagem…" disabled={busy} rows={1}
+            className="bg-black/50 border-white/10 min-h-[40px] max-h-32 resize-none"
           />
           <Button className="bg-primary hover:bg-primary/90" onClick={send} disabled={busy || !input.trim()}>
             <Send className="h-4 w-4" />
