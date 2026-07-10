@@ -9,7 +9,7 @@ import * as svc from './agency.service';
 // ------------------------------------------------------------------
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.5-mini';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
 
 const SYSTEM_PROMPT = `És o assistente da Agência no Zero45 Dashboard. Falas português de Portugal, de forma curta e direta.
 
@@ -244,7 +244,10 @@ async function callOpenAI(messages: ChatMessage[]) {
     if (!res.ok) {
         const body = await res.text();
         logger.error(`OpenAI error ${res.status}: ${body}`);
-        throw new AppError(`Erro da OpenAI (${res.status})`, 502);
+        let detail = '';
+        try { detail = JSON.parse(body)?.error?.message || ''; } catch { /* body não-JSON */ }
+        // 500 (não 502) para o proxy não intercetar a resposta com página própria
+        throw new AppError(`Erro da OpenAI (${res.status})${detail ? `: ${detail}` : ''}`, 500);
     }
     const json: any = await res.json();
     return json.choices[0].message;

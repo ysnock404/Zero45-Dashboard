@@ -17,7 +17,7 @@ services:
       CORS_ORIGINS: "https://dashboard.ysnock.dev"
       CLAUDE_CODE_OAUTH_TOKEN: "${CLAUDE_CODE_OAUTH_TOKEN}"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
-      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-5.5-mini}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-5.6-luna}"
     volumes:
       - zero45_dbdata:/app/data
     networks:
