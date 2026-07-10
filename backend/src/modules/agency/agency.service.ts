@@ -29,8 +29,11 @@ export function projectMonthlyForecast(p: {
             return round2(p.baseValue);
         case 'Anual':
             return round2(p.baseValue / 12);
+        case 'Diário':
+        case 'Semanal':
+            return round2(p.baseValue * recurrenceMonthlyMultiplier(p.model));
         case 'Variável':
-            // valor base × frequência (ex: 367,5€ semanal ≈ ×4,345/mês)
+            // legado: valor base × frequência (ex: 367,5€ semanal ≈ ×4,345/mês)
             return round2(p.baseValue * recurrenceMonthlyMultiplier(p.frequency || ''));
         case 'Único':
         default:

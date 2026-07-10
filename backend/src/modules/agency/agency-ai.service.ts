@@ -18,7 +18,7 @@ Um módulo de cashflow de uma agência: transações (receitas e despesas), proj
 
 REGRAS DOS DADOS:
 - Transação: { date (YYYY-MM-DD), type: "Receita"|"Despesa", value (SEMPRE positivo — o tipo define o sinal), status: "Pago"|"Pendente"|"Previsto" (default Pago), recurrence: "Único"|"Diário"|"Semanal"|"Mensal"|"Anual"|"Contínuo" (default Único), category, client, projectId, notes — opcionais }.
-- Projeto: { name (obrigatório), client, model: "Hora"|"Mensal"|"Anual"|"Único"|"Variável", baseValue, unit, frequency, hoursPerDay, daysPerMonth, active, notes }.
+- Projeto: { name (obrigatório), client, model: "Hora"|"Diário"|"Semanal"|"Mensal"|"Anual"|"Único" (o model define a cadência da receita), baseValue, unit, hoursPerDay, daysPerMonth, active, notes }.
 - Hoje é {TODAY}. Se o utilizador disser "hoje", "ontem", etc., converte para data absoluta.
 
 O QUE PODES FAZER (tools):
@@ -133,10 +133,9 @@ const TOOLS = [
             properties: {
                 name: { type: 'string' },
                 client: { type: 'string' },
-                model: { type: 'string', enum: ['Hora', 'Mensal', 'Anual', 'Único', 'Variável'] },
+                model: { type: 'string', enum: ['Hora', 'Diário', 'Semanal', 'Mensal', 'Anual', 'Único'] },
                 baseValue: { type: 'number' },
                 unit: { type: 'string' },
-                frequency: { type: 'string' },
                 hoursPerDay: { type: 'number' },
                 daysPerMonth: { type: 'number' },
                 active: { type: 'boolean' },

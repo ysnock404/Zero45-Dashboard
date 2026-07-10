@@ -28,7 +28,7 @@ import { agencyApi } from "@/services/api"
 // ---------- constantes (espelham a sheet de Config) ----------
 const TIPOS = ["Receita", "Despesa"]
 const RECORRENCIAS = ["Único", "Diário", "Semanal", "Mensal", "Anual", "Contínuo"]
-const MODELOS = ["Hora", "Mensal", "Anual", "Único", "Variável"]
+const MODELOS = ["Hora", "Diário", "Semanal", "Mensal", "Anual", "Único"]
 const ESTADOS = ["Pago", "Pendente", "Previsto"]
 const CHART_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#14b8a6", "#eab308"]
 
@@ -531,7 +531,7 @@ function AiLogsTab() {
 // ===================================================================
 // PROJETOS
 // ===================================================================
-const emptyProject = { name: "", client: "", model: "Mensal", baseValue: "", unit: "€", frequency: "", hoursPerDay: "", daysPerMonth: "", active: true, notes: "" }
+const emptyProject = { name: "", client: "", model: "Mensal", baseValue: "", unit: "€", hoursPerDay: "", daysPerMonth: "", active: true, notes: "" }
 
 function ProjectsTab({ projects, currency, reload }: any) {
   const { toast } = useToast()
@@ -572,7 +572,7 @@ function ProjectsTab({ projects, currency, reload }: any) {
             <TableHeader>
               <TableRow className="border-white/10 hover:bg-transparent">
                 <TableHead>Projeto</TableHead><TableHead>Cliente</TableHead><TableHead>Modelo</TableHead>
-                <TableHead className="text-right">Valor base</TableHead><TableHead>Freq.</TableHead>
+                <TableHead className="text-right">Valor base</TableHead>
                 <TableHead className="text-right">H/dia</TableHead><TableHead className="text-right">Dias/mês</TableHead>
                 <TableHead className="text-right">Receita mensal prevista</TableHead><TableHead>Ativo</TableHead><TableHead></TableHead>
               </TableRow>
@@ -584,10 +584,9 @@ function ProjectsTab({ projects, currency, reload }: any) {
                   <TableCell>{p.client || "—"}</TableCell>
                   <TableCell><Badge variant="outline" className="border-white/20">{p.model}</Badge></TableCell>
                   <TableCell className="text-right">{p.baseValue} {p.unit || ""}</TableCell>
-                  <TableCell className="text-muted-foreground">{p.frequency || "—"}</TableCell>
                   <TableCell className="text-right">{p.hoursPerDay || "—"}</TableCell>
                   <TableCell className="text-right">{p.daysPerMonth || "—"}</TableCell>
-                  <TableCell className="text-right font-medium text-green-400">{eur(p.monthlyForecast, currency)}</TableCell>
+                  <TableCell className={`text-right font-medium ${p.monthlyForecast ? "text-green-400" : "text-muted-foreground"}`}>{p.monthlyForecast ? eur(p.monthlyForecast, currency) : "—"}</TableCell>
                   <TableCell><Badge variant="outline" className={p.active ? "border-green-500/50 text-green-400" : "border-white/20 text-muted-foreground"}>{p.active ? "Sim" : "Não"}</Badge></TableCell>
                   <TableCell>
                     <div className="flex gap-1 justify-end">
@@ -597,7 +596,7 @@ function ProjectsTab({ projects, currency, reload }: any) {
                   </TableCell>
                 </TableRow>
               ))}
-              {projects.length === 0 && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Sem projetos.</TableCell></TableRow>}
+              {projects.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Sem projetos.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
@@ -615,7 +614,6 @@ function ProjectsTab({ projects, currency, reload }: any) {
             <Field label="Modelo"><FormSelect value={form.model} onChange={(v) => setForm({ ...form, model: v })} options={MODELOS} /></Field>
             <Field label="Valor base"><Input type="number" step="0.01" value={form.baseValue} onChange={(e) => setForm({ ...form, baseValue: e.target.value })} className="bg-black/50 border-white/10" /></Field>
             <Field label="Unidade"><Input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="bg-black/50 border-white/10" placeholder="€/h, €" /></Field>
-            <Field label="Frequência"><FormSelect value={form.frequency} onChange={(v) => setForm({ ...form, frequency: v })} options={["", ...RECORRENCIAS]} /></Field>
             <Field label="Horas/dia"><Input type="number" value={form.hoursPerDay} onChange={(e) => setForm({ ...form, hoursPerDay: e.target.value })} className="bg-black/50 border-white/10" /></Field>
             <Field label="Dias/mês"><Input type="number" value={form.daysPerMonth} onChange={(e) => setForm({ ...form, daysPerMonth: e.target.value })} className="bg-black/50 border-white/10" /></Field>
             <div className="col-span-2"><Field label="Notas"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="bg-black/50 border-white/10" rows={2} /></Field></div>
