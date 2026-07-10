@@ -586,7 +586,7 @@ function ProjectsTab({ projects, currency, reload }: any) {
                   <TableCell className="text-right">
                     {p.monthlyForecast ? (
                       <>
-                        <div className="font-medium text-green-400 leading-tight">{eur(p.monthlyForecast, currency)}<span className="text-muted-foreground font-normal">/mês</span></div>
+                        <div className="font-medium text-green-400 leading-tight">{eur(p.monthlyForecast, currency)}/mês</div>
                         <div className="text-xs text-muted-foreground leading-tight">{eur(p.monthlyForecast * 12, currency)}/ano</div>
                       </>
                     ) : <span className="text-muted-foreground">—</span>}
