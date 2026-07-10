@@ -113,6 +113,20 @@ model AgencyTransaction {
   @@map("agency_transactions")
 }
 
+// Log de ações do assistente AI da agência
+model AgencyAiLog {
+  id        String   @id @default(uuid())
+  action    String                     // ex: create_transaction, delete_transaction, chat
+  summary   String                     // descrição legível do que foi feito
+  input     String?                    // JSON dos argumentos usados pela tool
+  result    String?                    // JSON do resultado
+  success   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("agency_ai_logs")
+}
+
 // Configuração única do módulo (linha singleton com id = "default")
 model AgencyConfig {
   id                String   @id @default("default")

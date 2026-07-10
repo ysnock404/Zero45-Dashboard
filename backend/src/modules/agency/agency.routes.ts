@@ -19,6 +19,10 @@ agencyRouter.post('/projects', c.createProject);
 agencyRouter.put('/projects/:id', c.updateProject);
 agencyRouter.delete('/projects/:id', c.deleteProject);
 
+// Assistente AI
+agencyRouter.post('/ai/chat', c.aiChat);
+agencyRouter.get('/ai/logs', c.aiLogs);
+
 // Transactions
 agencyRouter.get('/transactions', c.listTransactions);
 agencyRouter.get('/transactions/export', c.exportCSV);

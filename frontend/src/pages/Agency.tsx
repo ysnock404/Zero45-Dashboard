@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,8 +15,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import {
-  Wallet, TrendingUp, TrendingDown, Plus, Trash2, Edit, RefreshCw, Download,
-  Briefcase, Receipt, Settings as SettingsIcon, PiggyBank, CalendarClock, Filter, Gauge,
+  Wallet, Plus, Trash2, Edit, Download, Send, Bot, ScrollText,
+  Briefcase, Receipt, Settings as SettingsIcon, Filter,
 } from "lucide-react"
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -51,6 +51,7 @@ export default function Agency() {
   const [projects, setProjects] = useState<any[]>([])
   const [transactions, setTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [quickAddOpen, setQuickAddOpen] = useState(false)
 
   const currency = summary?.currency || "€"
 
@@ -68,16 +69,6 @@ export default function Agency() {
 
   useEffect(() => { loadAll() }, [loadAll])
 
-  const handleGenerateRecurring = async () => {
-    try {
-      const res = await agencyApi.generateRecurring()
-      toast({ title: "Recorrências geradas", description: `${res.created} transações previstas criadas.` })
-      loadAll()
-    } catch (e: any) {
-      toast({ title: "Erro", description: e?.message, variant: "destructive" })
-    }
-  }
-
   const handleExport = async () => {
     const blob = await agencyApi.exportCSV()
     const url = URL.createObjectURL(blob)
@@ -89,36 +80,39 @@ export default function Agency() {
   if (loading) return <div className="text-muted-foreground">A carregar dashboard da agência…</div>
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <header className="flex flex-wrap justify-between items-center gap-4">
         <div>
-          <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-primary mb-4">
-            CASHFLOW · AGÊNCIA
-          </div>
-          <h1 className="text-5xl font-bold tracking-tight mb-2">
-            Dashboard <span className="text-muted-foreground">Agência</span>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Agência <span className="text-muted-foreground font-normal">· Cashflow</span>
           </h1>
-          <p className="text-muted-foreground text-lg">Gestão de receita, despesas, projetos e previsões — tudo ligado.</p>
         </div>
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex gap-2 flex-wrap">
+          <Button className="bg-primary hover:bg-primary/90" onClick={() => setQuickAddOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" /> Nova transação
+          </Button>
           <Button variant="outline" className="border-white/10 hover:bg-white/5 hover:text-white" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" /> Exportar CSV
-          </Button>
-          <Button variant="outline" className="border-white/10 hover:bg-white/5 hover:text-white" onClick={handleGenerateRecurring}>
-            <RefreshCw className="h-4 w-4 mr-2" /> Gerar recorrentes
           </Button>
         </div>
       </header>
 
-      <Tabs defaultValue="overview" className="space-y-6">
+      <TransactionDialog
+        open={quickAddOpen} setOpen={setQuickAddOpen} editing={null}
+        projects={projects} reload={loadAll}
+      />
+
+      <Tabs defaultValue="overview" className="space-y-5">
         <TabsList className="bg-black/40 border border-white/10">
           <TabsTrigger value="overview"><Wallet className="h-4 w-4 mr-2" />Overview</TabsTrigger>
           <TabsTrigger value="transactions"><Receipt className="h-4 w-4 mr-2" />Transações</TabsTrigger>
           <TabsTrigger value="projects"><Briefcase className="h-4 w-4 mr-2" />Projetos</TabsTrigger>
+          <TabsTrigger value="assistant"><Bot className="h-4 w-4 mr-2" />Assistente</TabsTrigger>
+          <TabsTrigger value="ailogs"><ScrollText className="h-4 w-4 mr-2" />AI Logs</TabsTrigger>
           <TabsTrigger value="config"><SettingsIcon className="h-4 w-4 mr-2" />Configuração</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-5">
           <OverviewTab summary={summary} cashflow={cashflow} forecast={forecast} reports={reports} currency={currency} />
         </TabsContent>
         <TabsContent value="transactions">
@@ -126,6 +120,12 @@ export default function Agency() {
         </TabsContent>
         <TabsContent value="projects">
           <ProjectsTab projects={projects} currency={currency} reload={loadAll} />
+        </TabsContent>
+        <TabsContent value="assistant">
+          <AssistantTab reload={loadAll} />
+        </TabsContent>
+        <TabsContent value="ailogs">
+          <AiLogsTab />
         </TabsContent>
         <TabsContent value="config">
           <ConfigTab reload={loadAll} />
@@ -138,42 +138,41 @@ export default function Agency() {
 // ===================================================================
 // OVERVIEW
 // ===================================================================
-function Kpi({ title, value, icon, sub, tone }: any) {
-  const toneColor = tone === "up" ? "text-green-500" : tone === "down" ? "text-red-500" : "text-muted-foreground"
+function Stat({ title, value, sub, tone }: any) {
+  const valueColor = tone === "down" ? "text-red-400" : tone === "up" ? "text-green-400" : ""
   return (
-    <Card className="glass-card border-0">
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-muted-foreground">{title}</span>
-          {icon}
-        </div>
-        <div className={`text-2xl font-bold ${tone === "down" ? "text-red-400" : tone === "up" ? "text-green-400" : ""}`}>{value}</div>
-        {sub && <p className={`text-xs mt-1 ${toneColor}`}>{sub}</p>}
-      </CardContent>
-    </Card>
+    <div className="px-4 py-3">
+      <div className="text-xs text-muted-foreground mb-1">{title}</div>
+      <div className={`text-lg font-bold leading-tight ${valueColor}`}>{value}</div>
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
   )
 }
 
 function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
   const s = summary
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Kpi title="Receita real (mês)" value={eur(s.receitaMes, currency)} tone="up" icon={<TrendingUp className="h-5 w-5 text-green-500" />} />
-        <Kpi title="Despesas (mês)" value={eur(s.despesaMes, currency)} tone="down" icon={<TrendingDown className="h-5 w-5 text-red-500" />} />
-        <Kpi title="Lucro real (mês)" value={eur(s.lucroMes, currency)} tone={s.lucroMes >= 0 ? "up" : "down"} icon={<Wallet className="h-5 w-5 text-primary" />} />
-        <Kpi title="Receita prevista (mês)" value={eur(s.receitaPrevistaMes, currency)} sub={`Anual prevista: ${eur(s.receitaAnualPrevista, currency)}`} icon={<CalendarClock className="h-5 w-5 text-blue-500" />} />
-        <Kpi title="Projetos ativos" value={s.projetosAtivos} icon={<Briefcase className="h-5 w-5 text-purple-500" />} />
-        <Kpi title="Saldo total" value={eur(s.saldoTotal, currency)} tone={s.saldoTotal >= 0 ? "up" : "down"} icon={<PiggyBank className="h-5 w-5 text-green-500" />} />
-        <Kpi title="Despesa recorrente (mês)" value={eur(s.despesaRecorrenteMes, currency)} tone="down" icon={<RefreshCw className="h-5 w-5 text-orange-500" />} />
-        <Kpi title="Runway" value={s.runwayMeses == null ? "∞" : `${s.runwayMeses} meses`} sub={s.runwayMeses == null ? "Fluxo positivo 🎉" : "até saldo zero"} icon={<Gauge className="h-5 w-5 text-yellow-500" />} />
-      </div>
+    <div className="space-y-5">
+      {/* faixa compacta de KPIs — tudo numa linha */}
+      <Card className="glass-card border-0">
+        <CardContent className="p-0">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 divide-x divide-white/5">
+            <Stat title="Receita (mês)" value={eur(s.receitaMes, currency)} tone="up" />
+            <Stat title="Despesas (mês)" value={eur(s.despesaMes, currency)} tone="down" />
+            <Stat title="Lucro (mês)" value={eur(s.lucroMes, currency)} tone={s.lucroMes >= 0 ? "up" : "down"} />
+            <Stat title="Saldo total" value={eur(s.saldoTotal, currency)} tone={s.saldoTotal >= 0 ? "up" : "down"} />
+            <Stat title="Prevista (mês)" value={eur(s.receitaPrevistaMes, currency)} sub={`Anual: ${eur(s.receitaAnualPrevista, currency)}`} />
+            <Stat title="Recorrente (mês)" value={eur(s.despesaRecorrenteMes, currency)} tone="down" />
+            <Stat title="Projetos ativos" value={s.projetosAtivos} />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-3">
         <Card className="glass-card border-0 lg:col-span-2">
-          <CardHeader><CardTitle>Cashflow mensal real ({s.year})</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Cashflow mensal real ({s.year})</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={240}>
               <ComposedChart data={cashflow}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis dataKey="month" tick={{ fill: "#888", fontSize: 11 }} />
@@ -189,9 +188,9 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
         </Card>
 
         <Card className="glass-card border-0">
-          <CardHeader><CardTitle>Saldo acumulado</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Saldo acumulado</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={240}>
               <AreaChart data={cashflow}>
                 <defs>
                   <linearGradient id="acc" x1="0" y1="0" x2="0" y2="1">
@@ -210,11 +209,11 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-3">
         <Card className="glass-card border-0">
-          <CardHeader><CardTitle>Forecast — próximos 12 meses</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Forecast — próximos 12 meses</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={220}>
               <ComposedChart data={forecast?.series || []}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis dataKey="month" tick={{ fill: "#888", fontSize: 10 }} />
@@ -229,11 +228,11 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
         </Card>
 
         <Card className="glass-card border-0">
-          <CardHeader><CardTitle>Receita por projeto</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Receita por projeto</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={reports?.receitaPorProjeto || []} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={(e: any) => e.name}>
+                <Pie data={reports?.receitaPorProjeto || []} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={(e: any) => e.name}>
                   {(reports?.receitaPorProjeto || []).map((_: any, i: number) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                 </Pie>
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => eur(Number(v), currency)} />
@@ -243,9 +242,9 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
         </Card>
 
         <Card className="glass-card border-0">
-          <CardHeader><CardTitle>Despesa por categoria</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-base">Despesa por categoria</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={reports?.despesaPorCategoria || []} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
                 <XAxis type="number" tick={{ fill: "#888", fontSize: 11 }} />
@@ -262,15 +261,68 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
 }
 
 // ===================================================================
-// TRANSAÇÕES
+// DIALOG DE TRANSAÇÃO (partilhado: header + tab de transações)
 // ===================================================================
 const emptyTx = { date: new Date().toISOString().slice(0, 10), projectId: "", client: "", type: "Despesa", category: "", value: "", status: "Pago", recurrence: "Único", notes: "" }
 
+function TransactionDialog({ open, setOpen, editing, projects, reload }: any) {
+  const { toast } = useToast()
+  const [form, setForm] = useState<any>(emptyTx)
+
+  useEffect(() => {
+    if (!open) return
+    if (editing) {
+      setForm({ date: new Date(editing.date).toISOString().slice(0, 10), projectId: editing.projectId || "", client: editing.client || "", type: editing.type, category: editing.category || "", value: Math.abs(editing.value), status: editing.status, recurrence: editing.recurrence, notes: editing.notes || "" })
+    } else {
+      setForm({ ...emptyTx, date: new Date().toISOString().slice(0, 10) })
+    }
+  }, [open, editing])
+
+  const save = async () => {
+    if (!form.value || !form.date) { toast({ title: "Preenche data e valor", variant: "destructive" }); return }
+    try {
+      const payload = { ...form, projectId: form.projectId || null, value: Number(form.value) }
+      if (editing) await agencyApi.updateTransaction(editing.id, payload)
+      else await agencyApi.createTransaction(payload)
+      toast({ title: editing ? "Transação atualizada" : "Transação criada" })
+      setOpen(false); reload()
+    } catch (e: any) { toast({ title: "Erro", description: e?.message, variant: "destructive" }) }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="bg-black/90 border-white/10 max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Editar transação" : "Nova transação"}</DialogTitle>
+          <DialogDescription>Valores de despesa são guardados como negativos automaticamente.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Data"><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="bg-black/50 border-white/10" /></Field>
+          <Field label="Valor"><Input type="number" step="0.01" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} className="bg-black/50 border-white/10" /></Field>
+          <Field label="Tipo"><FormSelect value={form.type} onChange={(v) => setForm({ ...form, type: v })} options={TIPOS} /></Field>
+          <Field label="Estado"><FormSelect value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={ESTADOS} /></Field>
+          <Field label="Projeto"><FormSelect value={form.projectId} onChange={(v) => setForm({ ...form, projectId: v })} options={[{ label: "— Nenhum —", value: "" }, ...projects.map((p: any) => ({ label: p.name, value: p.id }))]} /></Field>
+          <Field label="Cliente"><Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} className="bg-black/50 border-white/10" /></Field>
+          <Field label="Categoria"><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="bg-black/50 border-white/10" placeholder="Domínio, Subscrição…" /></Field>
+          <Field label="Recorrência"><FormSelect value={form.recurrence} onChange={(v) => setForm({ ...form, recurrence: v })} options={RECORRENCIAS} /></Field>
+          <div className="col-span-2"><Field label="Notas"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="bg-black/50 border-white/10" rows={2} /></Field></div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" className="border-white/10" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button className="bg-primary hover:bg-primary/90" onClick={save}>{editing ? "Guardar" : "Criar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ===================================================================
+// TRANSAÇÕES
+// ===================================================================
 function TransactionsTab({ transactions, projects, currency, reload }: any) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
-  const [form, setForm] = useState<any>(emptyTx)
   const [filters, setFilters] = useState<any>({ type: "", status: "", projectId: "", search: "" })
 
   const filtered = useMemo(() => transactions.filter((t: any) => {
@@ -285,23 +337,8 @@ function TransactionsTab({ transactions, projects, currency, reload }: any) {
     return true
   }), [transactions, filters])
 
-  const openNew = () => { setEditing(null); setForm(emptyTx); setOpen(true) }
-  const openEdit = (t: any) => {
-    setEditing(t)
-    setForm({ date: new Date(t.date).toISOString().slice(0, 10), projectId: t.projectId || "", client: t.client || "", type: t.type, category: t.category || "", value: Math.abs(t.value), status: t.status, recurrence: t.recurrence, notes: t.notes || "" })
-    setOpen(true)
-  }
-
-  const save = async () => {
-    if (!form.value || !form.date) { toast({ title: "Preenche data e valor", variant: "destructive" }); return }
-    try {
-      const payload = { ...form, projectId: form.projectId || null, value: Number(form.value) }
-      if (editing) await agencyApi.updateTransaction(editing.id, payload)
-      else await agencyApi.createTransaction(payload)
-      toast({ title: editing ? "Transação atualizada" : "Transação criada" })
-      setOpen(false); reload()
-    } catch (e: any) { toast({ title: "Erro", description: e?.message, variant: "destructive" }) }
-  }
+  const openNew = () => { setEditing(null); setOpen(true) }
+  const openEdit = (t: any) => { setEditing(t); setOpen(true) }
 
   const remove = async (id: string) => {
     try { await agencyApi.deleteTransaction(id); toast({ title: "Transação removida" }); reload() }
@@ -364,29 +401,129 @@ function TransactionsTab({ transactions, projects, currency, reload }: any) {
         </div>
       </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-black/90 border-white/10 max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Editar transação" : "Nova transação"}</DialogTitle>
-            <DialogDescription>Valores de despesa são guardados como negativos automaticamente.</DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Data"><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-            <Field label="Valor"><Input type="number" step="0.01" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-            <Field label="Tipo"><FormSelect value={form.type} onChange={(v) => setForm({ ...form, type: v })} options={TIPOS} /></Field>
-            <Field label="Estado"><FormSelect value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={ESTADOS} /></Field>
-            <Field label="Projeto"><FormSelect value={form.projectId} onChange={(v) => setForm({ ...form, projectId: v })} options={[{ label: "— Nenhum —", value: "" }, ...projects.map((p: any) => ({ label: p.name, value: p.id }))]} /></Field>
-            <Field label="Cliente"><Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-            <Field label="Categoria"><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="bg-black/50 border-white/10" placeholder="Domínio, Subscrição…" /></Field>
-            <Field label="Recorrência"><FormSelect value={form.recurrence} onChange={(v) => setForm({ ...form, recurrence: v })} options={RECORRENCIAS} /></Field>
-            <div className="col-span-2"><Field label="Notas"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="bg-black/50 border-white/10" rows={2} /></Field></div>
+      <TransactionDialog open={open} setOpen={setOpen} editing={editing} projects={projects} reload={reload} />
+    </Card>
+  )
+}
+
+// ===================================================================
+// ASSISTENTE AI
+// ===================================================================
+type ChatMsg = { role: "user" | "assistant"; content: string; actions?: { action: string; summary: string; success: boolean }[] }
+
+function AssistantTab({ reload }: any) {
+  const [messages, setMessages] = useState<ChatMsg[]>([
+    { role: "assistant", content: "Olá! Sou o assistente da agência. Diz-me coisas como “fiz 100€ hoje do cliente X”, “gastei 12€ no domínio” ou pergunta “quanto lucrei este mês?” — eu trato do resto." },
+  ])
+  const [input, setInput] = useState("")
+  const [busy, setBusy] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }) }, [messages, busy])
+
+  const send = async () => {
+    const text = input.trim()
+    if (!text || busy) return
+    const next: ChatMsg[] = [...messages, { role: "user", content: text }]
+    setMessages(next); setInput(""); setBusy(true)
+    try {
+      const res = await agencyApi.aiChat(next.map(({ role, content }) => ({ role, content })))
+      setMessages([...next, { role: "assistant", content: res.reply, actions: res.actions }])
+      if (res.actions?.length) reload() // dados mudaram — refrescar dashboard
+    } catch (e: any) {
+      setMessages([...next, { role: "assistant", content: `⚠️ Erro: ${e?.response?.data?.message || e?.message || "falha na API"}` }])
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <Card className="glass-card border-0">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base"><Bot className="h-5 w-5" /> Assistente da Agência</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="h-[420px] overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-4 space-y-3">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-wrap ${m.role === "user" ? "bg-primary/20 border border-primary/30" : "bg-white/5 border border-white/10"}`}>
+                {m.content}
+                {m.actions && m.actions.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
+                    {m.actions.map((a, j) => (
+                      <div key={j} className={`text-xs flex items-center gap-1.5 ${a.success ? "text-green-400" : "text-red-400"}`}>
+                        <ScrollText className="h-3 w-3 shrink-0" /> {a.summary}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {busy && <div className="text-sm text-muted-foreground animate-pulse">A pensar…</div>}
+          <div ref={bottomRef} />
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={input} onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") send() }}
+            placeholder="Ex: gastei 30€ em hosting hoje…" disabled={busy}
+            className="bg-black/50 border-white/10"
+          />
+          <Button className="bg-primary hover:bg-primary/90" onClick={send} disabled={busy || !input.trim()}>
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">Todas as ações do assistente (criar/editar/apagar) ficam registadas na tab AI Logs.</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ===================================================================
+// AI LOGS
+// ===================================================================
+function AiLogsTab() {
+  const [logs, setLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(() => {
+    agencyApi.aiLogs(200).then(setLogs).catch(() => setLogs([])).finally(() => setLoading(false))
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  return (
+    <Card className="glass-card border-0">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2 text-base"><ScrollText className="h-5 w-5" /> Ações do assistente AI</CardTitle>
+        <Button variant="outline" size="sm" className="border-white/10" onClick={load}>Atualizar</Button>
+      </CardHeader>
+      <CardContent>
+        {loading ? <div className="text-muted-foreground">A carregar…</div> : (
+          <div className="rounded-lg border border-white/10 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-white/10 hover:bg-transparent">
+                  <TableHead>Quando</TableHead><TableHead>Ação</TableHead><TableHead>Descrição</TableHead><TableHead>Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((l) => (
+                  <TableRow key={l.id} className="border-white/5">
+                    <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(l.createdAt).toLocaleString("pt-PT")}</TableCell>
+                    <TableCell><Badge variant="outline" className="border-white/20">{l.action}</Badge></TableCell>
+                    <TableCell>{l.summary}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={l.success ? "border-green-500/50 text-green-400" : "border-red-500/50 text-red-400"}>
+                        {l.success ? "OK" : "Erro"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {logs.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Sem ações registadas ainda.</TableCell></TableRow>}
+              </TableBody>
+            </Table>
           </div>
-          <DialogFooter>
-            <Button variant="outline" className="border-white/10" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button className="bg-primary hover:bg-primary/90" onClick={save}>{editing ? "Guardar" : "Criar"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
+      </CardContent>
     </Card>
   )
 }

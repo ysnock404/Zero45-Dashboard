@@ -284,6 +284,10 @@ export const agencyApi = {
         (await apiClient.delete(`/agency/transactions/${id}`)).data.data,
     generateRecurring: async (upToDate?: string) =>
         (await apiClient.post('/agency/transactions/recurring/generate', { upToDate })).data.data,
+    aiChat: async (messages: { role: string; content: string }[]) =>
+        (await apiClient.post('/agency/ai/chat', { messages })).data.data,
+    aiLogs: async (limit?: number) =>
+        (await apiClient.get(`/agency/ai/logs${qs({ limit })}`)).data.data,
     exportCSV: async (filters?: Record<string, any>) => {
         const response = await apiClient.get(`/agency/transactions/export${qs(filters)}`, {
             responseType: 'blob',

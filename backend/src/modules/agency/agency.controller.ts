@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as svc from './agency.service';
+import * as ai from './agency-ai.service';
 import { AppError } from '../../shared/middleware/errorHandler';
 import { logger } from '../../shared/utils/logger';
 
@@ -51,6 +52,10 @@ export const agencyController = {
     updateTransaction: handle((req) => svc.updateTransaction(req.params.id, req.body)),
     deleteTransaction: handle((req) => svc.deleteTransaction(req.params.id)),
     generateRecurring: handle((req) => svc.generateRecurring(req.body?.upToDate)),
+
+    // Assistente AI
+    aiChat: handle((req) => ai.chat(req.body?.messages)),
+    aiLogs: handle((req) => ai.listAiLogs(req.query.limit ? Number(req.query.limit) : 100)),
 
     // Export
     exportCSV: async (req: Request, res: Response) => {
