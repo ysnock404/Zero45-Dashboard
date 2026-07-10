@@ -411,10 +411,36 @@ function TransactionsTab({ transactions, projects, currency, reload }: any) {
 // ===================================================================
 type ChatMsg = { role: "user" | "assistant"; content: string; actions?: { action: string; summary: string; success: boolean }[] }
 
+// mini-markdown: **negrito** + listas com "- "
+function md(text: string) {
+  const bold = (s: string, key: number) =>
+    s.split(/\*\*(.+?)\*\*/g).map((part, i) => i % 2 ? <strong key={`${key}-${i}`} className="font-semibold text-white">{part}</strong> : part)
+
+  const lines = text.split("\n")
+  const out: any[] = []
+  let list: string[] = []
+  const flush = () => {
+    if (list.length) {
+      out.push(
+        <ul key={out.length} className="list-disc pl-5 space-y-0.5 my-1">
+          {list.map((li, i) => <li key={i}>{bold(li, i)}</li>)}
+        </ul>
+      )
+      list = []
+    }
+  }
+  lines.forEach((line, i) => {
+    const m = line.match(/^\s*[-•]\s+(.*)/)
+    if (m) { list.push(m[1]); return }
+    flush()
+    if (line.trim()) out.push(<p key={`p${i}`} className="my-0.5">{bold(line, i)}</p>)
+  })
+  flush()
+  return out
+}
+
 function AssistantTab({ reload }: any) {
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: "assistant", content: "Olá! Sou o assistente da agência. Diz-me coisas como “fiz 100€ hoje do cliente X”, “gastei 12€ no domínio” ou pergunta “quanto lucrei este mês?” — eu trato do resto." },
-  ])
+  const [messages, setMessages] = useState<ChatMsg[]>([])
   const [input, setInput] = useState("")
   const [busy, setBusy] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -441,11 +467,29 @@ function AssistantTab({ reload }: any) {
         <CardTitle className="flex items-center gap-2 text-base"><Bot className="h-5 w-5" /> Assistente da Agência</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="h-[420px] overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-4 space-y-3">
+        <div className="h-[420px] overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-4 space-y-4">
+          {messages.length === 0 && !busy && (
+            <div className="h-full flex flex-col items-center justify-center text-center gap-3 text-muted-foreground">
+              <Bot className="h-10 w-10 opacity-40" />
+              <div className="text-sm max-w-xs">
+                Regista movimentos ou faz perguntas sobre a agência.
+                <div className="mt-3 flex flex-col gap-1.5 text-xs">
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">“fiz 100€ hoje do cliente X”</span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">“gastei 12€ no domínio”</span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">“quanto lucrei este mês?”</span>
+                </div>
+              </div>
+            </div>
+          )}
           {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm whitespace-pre-wrap ${m.role === "user" ? "bg-primary/20 border border-primary/30" : "bg-white/5 border border-white/10"}`}>
-                {m.content}
+            <div key={i} className={`flex gap-2.5 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              {m.role === "assistant" && (
+                <div className="h-7 w-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0 mt-0.5">
+                  <Bot className="h-4 w-4 text-primary" />
+                </div>
+              )}
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${m.role === "user" ? "bg-primary/20 border border-primary/30 rounded-br-md" : "bg-white/5 border border-white/10 rounded-bl-md"}`}>
+                {m.role === "assistant" ? md(m.content) : <span className="whitespace-pre-wrap">{m.content}</span>}
                 {m.actions && m.actions.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
                     {m.actions.map((a, j) => (
@@ -458,7 +502,14 @@ function AssistantTab({ reload }: any) {
               </div>
             </div>
           ))}
-          {busy && <div className="text-sm text-muted-foreground animate-pulse">A pensar…</div>}
+          {busy && (
+            <div className="flex gap-2.5">
+              <div className="h-7 w-7 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
+                <Bot className="h-4 w-4 text-primary" />
+              </div>
+              <div className="rounded-2xl rounded-bl-md px-4 py-2.5 bg-white/5 border border-white/10 text-sm text-muted-foreground animate-pulse">A pensar…</div>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
         <div className="flex gap-2">
