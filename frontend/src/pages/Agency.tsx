@@ -529,7 +529,7 @@ function AssistantTab({ reload }: any) {
           <Input
             value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") send() }}
-            placeholder="Ex: gastei 30€ em hosting hoje…" disabled={busy}
+            placeholder="Escreve uma mensagem…" disabled={busy}
             className="bg-black/50 border-white/10"
           />
           <Button className="bg-primary hover:bg-primary/90" onClick={send} disabled={busy || !input.trim()}>

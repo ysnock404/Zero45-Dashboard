@@ -236,22 +236,29 @@ async function callOpenAI(messages: ChatMessage[]) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new AppError('OPENAI_API_KEY não configurada no backend', 500);
 
-    const res = await fetch(OPENAI_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        // reasoning_effort 'none': modelos GPT-5.6 exigem-no para usar tools em /chat/completions
-        body: JSON.stringify({ model: OPENAI_MODEL, messages, tools: openaiTools, reasoning_effort: 'none' }),
-    });
-    if (!res.ok) {
+    let lastStatus = 0;
+    let lastDetail = '';
+    // retry para erros transitórios (401 "insufficient permissions" intermitente, 429, 5xx)
+    for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 800 * attempt));
+        const res = await fetch(OPENAI_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+            // reasoning_effort 'none': modelos GPT-5.6 exigem-no para usar tools em /chat/completions
+            body: JSON.stringify({ model: OPENAI_MODEL, messages, tools: openaiTools, reasoning_effort: 'none' }),
+        });
+        if (res.ok) {
+            const json: any = await res.json();
+            return json.choices[0].message;
+        }
         const body = await res.text();
-        logger.error(`OpenAI error ${res.status}: ${body}`);
-        let detail = '';
-        try { detail = JSON.parse(body)?.error?.message || ''; } catch { /* body não-JSON */ }
-        // 500 (não 502) para o proxy não intercetar a resposta com página própria
-        throw new AppError(`Erro da OpenAI (${res.status})${detail ? `: ${detail}` : ''}`, 500);
+        logger.error(`OpenAI error ${res.status} (tentativa ${attempt + 1}): ${body}`);
+        lastStatus = res.status;
+        try { lastDetail = JSON.parse(body)?.error?.message || ''; } catch { lastDetail = ''; }
+        if (res.status === 400) break; // pedido inválido — retry não ajuda
     }
-    const json: any = await res.json();
-    return json.choices[0].message;
+    // 500 (não 502) para o proxy não intercetar a resposta com página própria
+    throw new AppError(`Erro da OpenAI (${lastStatus})${lastDetail ? `: ${lastDetail}` : ''}`, 500);
 }
 
 const MAX_TOOL_ROUNDS = 8;
