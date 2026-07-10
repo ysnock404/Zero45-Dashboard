@@ -8,7 +8,7 @@ import * as svc from './agency.service';
 // Usa a API da OpenAI (chat completions + tool calling).
 // ------------------------------------------------------------------
 
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
 
 const SYSTEM_PROMPT = `És o assistente da Agência no Zero45 Dashboard. Falas português de Portugal, de forma curta e direta.
@@ -182,9 +182,12 @@ const TOOLS = [
 ];
 
 const toolByName = new Map(TOOLS.map((t) => [t.name, t]));
+// formato de tools da Responses API (/v1/responses)
 const openaiTools = TOOLS.map((t) => ({
     type: 'function',
-    function: { name: t.name, description: t.description, parameters: t.parameters },
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters,
 }));
 
 // ---------------- logging ----------------
@@ -230,27 +233,30 @@ export async function listAiLogs(limit = 100) {
 
 // ---------------- chat loop ----------------
 
-type ChatMessage = { role: string; content: string | null; tool_calls?: any[]; tool_call_id?: string };
-
-async function callOpenAI(messages: ChatMessage[]) {
+async function callOpenAI(instructions: string, input: any[]) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new AppError('OPENAI_API_KEY não configurada no backend', 500);
 
     let lastStatus = 0;
     let lastDetail = '';
-    // retry para erros transitórios (401 "insufficient permissions" intermitente, 429, 5xx)
+    // retry para erros transitórios (401 intermitente, 429, 5xx)
     for (let attempt = 0; attempt < 3; attempt++) {
         if (attempt > 0) await new Promise((r) => setTimeout(r, 800 * attempt));
         const res = await fetch(OPENAI_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            // reasoning_effort 'none': modelos GPT-5.6 exigem-no para usar tools em /chat/completions
-            body: JSON.stringify({ model: OPENAI_MODEL, messages, tools: openaiTools, reasoning_effort: 'none' }),
+            body: JSON.stringify({
+                model: OPENAI_MODEL,
+                instructions,
+                input,
+                tools: openaiTools,
+                // stateless: não guardar no servidor da OpenAI; devolver reasoning cifrado
+                // para podermos reenviar os itens nas rondas seguintes de tools
+                store: false,
+                include: ['reasoning.encrypted_content'],
+            }),
         });
-        if (res.ok) {
-            const json: any = await res.json();
-            return json.choices[0].message;
-        }
+        if (res.ok) return (await res.json()) as any;
         const body = await res.text();
         logger.error(`OpenAI error ${res.status} (tentativa ${attempt + 1}): ${body}`);
         lastStatus = res.status;
@@ -274,29 +280,39 @@ export async function chat(history: { role: string; content: string }[]) {
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const messages: ChatMessage[] = [
-        { role: 'system', content: SYSTEM_PROMPT.replace('{TODAY}', today) },
-        ...history.slice(-30).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content ?? '') })),
-    ];
+    const instructions = SYSTEM_PROMPT.replace('{TODAY}', today);
+    const input: any[] = history.slice(-30).map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content ?? ''),
+    }));
 
     const actions: { action: string; summary: string; success: boolean }[] = [];
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        const msg = await callOpenAI(messages);
+        const resp = await callOpenAI(instructions, input);
+        const output: any[] = resp.output || [];
+        const calls = output.filter((o) => o.type === 'function_call');
 
-        if (!msg.tool_calls || msg.tool_calls.length === 0) {
-            return { reply: msg.content ?? '', actions };
+        if (calls.length === 0) {
+            const reply = output
+                .filter((o) => o.type === 'message')
+                .flatMap((m) => m.content || [])
+                .filter((c: any) => c.type === 'output_text')
+                .map((c: any) => c.text)
+                .join('');
+            return { reply, actions };
         }
 
-        messages.push(msg);
-        for (const tc of msg.tool_calls) {
-            const tool = toolByName.get(tc.function.name);
+        // reenviar os itens de output (incl. reasoning cifrado) + resultados das tools
+        input.push(...output);
+        for (const tc of calls) {
+            const tool = toolByName.get(tc.name);
             let args: any = {};
-            try { args = JSON.parse(tc.function.arguments || '{}'); } catch { /* args inválidos */ }
+            try { args = JSON.parse(tc.arguments || '{}'); } catch { /* args inválidos */ }
 
             let content: string;
             if (!tool) {
-                content = JSON.stringify({ error: `Tool desconhecida: ${tc.function.name}` });
+                content = JSON.stringify({ error: `Tool desconhecida: ${tc.name}` });
             } else {
                 try {
                     const result = await tool.run(args);
@@ -313,7 +329,7 @@ export async function chat(history: { role: string; content: string }[]) {
                     }
                 }
             }
-            messages.push({ role: 'tool', tool_call_id: tc.id, content });
+            input.push({ type: 'function_call_output', call_id: tc.call_id, output: content });
         }
     }
 
