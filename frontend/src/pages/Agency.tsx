@@ -574,7 +574,8 @@ function ProjectsTab({ projects, currency, reload }: any) {
                 <TableHead>Projeto</TableHead><TableHead>Cliente</TableHead><TableHead>Modelo</TableHead>
                 <TableHead className="text-right">Valor base</TableHead>
                 <TableHead className="text-right">H/dia</TableHead><TableHead className="text-right">Dias/mês</TableHead>
-                <TableHead className="text-right">Receita mensal prevista</TableHead><TableHead>Ativo</TableHead><TableHead></TableHead>
+                <TableHead className="text-right">Receita mensal prevista</TableHead>
+                <TableHead className="text-right">Receita anual prevista</TableHead><TableHead>Ativo</TableHead><TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -587,6 +588,7 @@ function ProjectsTab({ projects, currency, reload }: any) {
                   <TableCell className="text-right">{p.hoursPerDay || "—"}</TableCell>
                   <TableCell className="text-right">{p.daysPerMonth || "—"}</TableCell>
                   <TableCell className={`text-right font-medium ${p.monthlyForecast ? "text-green-400" : "text-muted-foreground"}`}>{p.monthlyForecast ? eur(p.monthlyForecast, currency) : "—"}</TableCell>
+                  <TableCell className={`text-right font-medium ${p.monthlyForecast ? "text-green-400/80" : "text-muted-foreground"}`}>{p.monthlyForecast ? eur(p.monthlyForecast * 12, currency) : "—"}</TableCell>
                   <TableCell><Badge variant="outline" className={p.active ? "border-green-500/50 text-green-400" : "border-white/20 text-muted-foreground"}>{p.active ? "Sim" : "Não"}</Badge></TableCell>
                   <TableCell>
                     <div className="flex gap-1 justify-end">
@@ -596,7 +598,7 @@ function ProjectsTab({ projects, currency, reload }: any) {
                   </TableCell>
                 </TableRow>
               ))}
-              {projects.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Sem projetos.</TableCell></TableRow>}
+              {projects.length === 0 && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Sem projetos.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
