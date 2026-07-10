@@ -239,7 +239,8 @@ async function callOpenAI(messages: ChatMessage[]) {
     const res = await fetch(OPENAI_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model: OPENAI_MODEL, messages, tools: openaiTools }),
+        // reasoning_effort 'none': modelos GPT-5.6 exigem-no para usar tools em /chat/completions
+        body: JSON.stringify({ model: OPENAI_MODEL, messages, tools: openaiTools, reasoning_effort: 'none' }),
     });
     if (!res.ok) {
         const body = await res.text();
