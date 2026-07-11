@@ -127,6 +127,15 @@ model AgencyAiLog {
   @@map("agency_ai_logs")
 }
 
+// Histórico de conversa do bot Telegram (uma linha por chat; /new limpa)
+model TelegramChat {
+  chatId    String   @id                 // chat id do Telegram
+  history   String   @default("[]")      // JSON [{role, content}]
+  updatedAt DateTime @updatedAt
+
+  @@map("telegram_chats")
+}
+
 // Configuração única do módulo (linha singleton com id = "default")
 model AgencyConfig {
   id                String   @id @default("default")

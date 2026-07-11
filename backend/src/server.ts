@@ -18,6 +18,7 @@ import { setupSSHGateway } from './modules/ssh/ssh.gateway';
 import { setupRDPGateway } from './modules/rdp/rdp.gateway';
 import { setupClaudeTerminalGateway } from './modules/claude-terminal/claude-terminal.gateway';
 import { setupGuacamoleServer } from './modules/rdp/guac.server';
+import { startTelegramBot } from './modules/telegram/telegram.service';
 
 class Server {
     private app: Application;
@@ -177,6 +178,8 @@ class Server {
             logger.info('Press Ctrl+C to stop the server');
             logger.info('');
         });
+
+        startTelegramBot();
 
         // Graceful shutdown
         process.on('SIGTERM', () => this.shutdown());

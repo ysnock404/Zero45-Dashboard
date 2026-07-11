@@ -2,6 +2,7 @@ import { prisma } from '../../shared/services/prisma.service';
 import { AppError } from '../../shared/middleware/errorHandler';
 import { logger } from '../../shared/utils/logger';
 import * as svc from './agency.service';
+import { hostService } from '../host/host.service';
 
 // ------------------------------------------------------------------
 // Assistente AI da Agência — agente com tools sobre a API da agência.
@@ -11,10 +12,10 @@ import * as svc from './agency.service';
 const OPENAI_URL = 'https://api.openai.com/v1/responses';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
 
-const SYSTEM_PROMPT = `És o assistente da Agência no Zero45 Dashboard. Falas português de Portugal, de forma curta e direta.
+const SYSTEM_PROMPT = `És o assistente do Zero45 Dashboard. Falas português de Portugal, de forma curta e direta.
 
 O QUE É O SISTEMA:
-Um módulo de cashflow de uma agência: transações (receitas e despesas), projetos (clientes / fontes de receita recorrente) e KPIs (receita, despesas, lucro, saldo, previsões).
+Um dashboard de infraestrutura pessoal com um módulo de cashflow de agência: transações (receitas e despesas), projetos (clientes / fontes de receita recorrente) e KPIs (receita, despesas, lucro, saldo, previsões). Também consegues consultar métricas do servidor (CPU, RAM, discos, rede, uptime) com a tool get_server_metrics.
 
 REGRAS DOS DADOS:
 - Transação: { date (YYYY-MM-DD), type: "Receita"|"Despesa", value (SEMPRE positivo — o tipo define o sinal), status: "Pago"|"Pendente"|"Previsto" (default Pago), recurrence: "Único"|"Diário"|"Semanal"|"Mensal"|"Anual"|"Contínuo" (default Único), category, client, projectId, notes — opcionais }.
@@ -29,7 +30,7 @@ O QUE PODES FAZER (tools):
 - Só afirmes que algo foi criado/apagado depois de a tool devolver sucesso. Se uma tool falhar, diz ao utilizador o que falhou.
 
 O QUE NÃO PODES FAZER:
-- Nada fora do módulo da agência (sem SSH, sem servidores, sem outras páginas).
+- Nada além das tools disponíveis (sem SSH, sem executar comandos, sem alterar o servidor — só leitura de métricas).
 - Não inventes dados: se não sabes, usa as tools para consultar.
 
 Depois de agir, responde numa frase curta a confirmar o que foi feito (com o valor e tipo). Todas as tuas ações ficam registadas nos logs do AI.`;
@@ -194,6 +195,13 @@ const TOOLS = [
         },
         run: (a: any) => svc.deleteProject(a.id),
         mutating: true,
+    },
+    {
+        name: 'get_server_metrics',
+        description: 'Métricas atuais do servidor: CPU, RAM, discos, rede, temperatura, uptime.',
+        parameters: { type: 'object', properties: {} },
+        run: () => hostService.getMetrics(),
+        mutating: false,
     },
 ];
 
