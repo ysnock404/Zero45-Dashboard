@@ -657,7 +657,8 @@ function ProjectsTab({ projects, currency, reload }: any) {
               <TableRow className="border-white/10 hover:bg-transparent">
                 <TableHead>Projeto</TableHead><TableHead>Cliente</TableHead><TableHead>Modelo</TableHead>
                 <TableHead className="text-right">Valor base</TableHead>
-                <TableHead className="text-right">Receita prevista</TableHead><TableHead>Ativo</TableHead><TableHead></TableHead>
+                <TableHead className="text-right">Receita prevista</TableHead>
+                <TableHead className="text-right">Lucro atual</TableHead><TableHead>Ativo</TableHead><TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -678,6 +679,9 @@ function ProjectsTab({ projects, currency, reload }: any) {
                       </>
                     ) : <span className="text-muted-foreground">—</span>}
                   </TableCell>
+                  <TableCell className={`text-right font-medium ${p.realProfit > 0 ? "text-green-400" : p.realProfit < 0 ? "text-red-400" : "text-muted-foreground"}`}>
+                    {p.realProfit ? eur(p.realProfit, currency) : "—"}
+                  </TableCell>
                   <TableCell><Badge variant="outline" className={p.active ? "border-green-500/50 text-green-400" : "border-white/20 text-muted-foreground"}>{p.active ? "Sim" : "Não"}</Badge></TableCell>
                   <TableCell>
                     <div className="flex gap-1 justify-end">
@@ -687,7 +691,7 @@ function ProjectsTab({ projects, currency, reload }: any) {
                   </TableCell>
                 </TableRow>
               ))}
-              {projects.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Sem projetos.</TableCell></TableRow>}
+              {projects.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Sem projetos.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>

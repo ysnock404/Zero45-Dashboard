@@ -91,7 +91,18 @@ export async function updateConfig(data: any) {
 
 export async function listProjects() {
     const projects = await prisma.agencyProject.findMany({ orderBy: { createdAt: 'asc' } });
-    return projects.map((p) => ({ ...p, monthlyForecast: projectMonthlyForecast(p) }));
+    // lucro real por projeto: soma das transações pagas (receitas +, despesas -)
+    const totals = await prisma.agencyTransaction.groupBy({
+        by: ['projectId'],
+        where: { status: 'Pago', projectId: { not: null } },
+        _sum: { value: true },
+    });
+    const profitByProject = new Map(totals.map((t) => [t.projectId, t._sum.value ?? 0]));
+    return projects.map((p) => ({
+        ...p,
+        monthlyForecast: projectMonthlyForecast(p),
+        realProfit: round2(profitByProject.get(p.id) ?? 0),
+    }));
 }
 
 export async function createProject(data: any) {
