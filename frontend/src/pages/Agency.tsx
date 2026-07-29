@@ -25,6 +25,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { agencyApi } from "@/services/api"
 import { useIsMobile } from "@/hooks/use-media-query"
+import { KpiStrip } from "./agency/KpiStrip"
 
 // ---------- constantes (espelham a sheet de Config) ----------
 const TIPOS = ["Receita", "Despesa"]
@@ -139,36 +140,12 @@ export default function Agency() {
 // ===================================================================
 // OVERVIEW
 // ===================================================================
-function Stat({ title, value, sub, tone }: any) {
-  const valueColor = tone === "down" ? "text-red-400" : tone === "up" ? "text-green-400" : ""
-  return (
-    <div className="px-3 py-3 md:px-4 min-w-0">
-      <div className="text-xs text-muted-foreground mb-1 truncate">{title}</div>
-      <div className={`text-base md:text-lg font-bold leading-tight break-words ${valueColor}`}>{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground mt-0.5 break-words">{sub}</div>}
-    </div>
-  )
-}
-
 function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
   const s = summary
   const isNarrow = useIsMobile()
   return (
     <div className="space-y-5">
-      {/* faixa compacta de KPIs — tudo numa linha */}
-      <Card className="glass-card border-0">
-        <CardContent className="p-0">
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 divide-y divide-x divide-white/5 [&>*:nth-child(odd)]:border-l-0 md:[&>*]:border-l md:[&>*:nth-child(4n+1)]:border-l-0 xl:[&>*:nth-child(7n+1)]:border-l-0">
-            <Stat title="Receita (mês)" value={eur(s.receitaMes, currency)} tone="up" />
-            <Stat title="Despesas (mês)" value={eur(s.despesaMes, currency)} tone="down" />
-            <Stat title="Lucro (mês)" value={eur(s.lucroMes, currency)} tone={s.lucroMes >= 0 ? "up" : "down"} />
-            <Stat title="Saldo total" value={eur(s.saldoTotal, currency)} tone={s.saldoTotal >= 0 ? "up" : "down"} />
-            <Stat title="Prevista (mês)" value={eur(s.receitaPrevistaMes, currency)} sub={`Anual: ${eur(s.receitaAnualPrevista, currency)}`} />
-            <Stat title="Recorrente (mês)" value={eur(s.despesaRecorrenteMes, currency)} tone="down" />
-            <Stat title="Projetos ativos" value={s.projetosAtivos} />
-          </div>
-        </CardContent>
-      </Card>
+      <KpiStrip summary={s} currency={currency} />
 
       <div className="grid gap-5 lg:grid-cols-3">
         <Card className="glass-card border-0 lg:col-span-2">
