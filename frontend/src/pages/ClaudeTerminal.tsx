@@ -12,15 +12,15 @@ export default function ClaudeTerminal() {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <header>
-        <h1 className="text-4xl font-bold tracking-tight mb-2">Assistente</h1>
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-2">Assistente</h1>
         <p className="text-muted-foreground text-lg">
           Fala diretamente com o Claude Code. Sessão contínua, com memória entre visitas.
         </p>
       </header>
 
-      <Card className={`glass-card border-0 bg-black/90 transition-all ${isFullscreen ? 'fixed inset-4 z-50' : ''}`}>
+      <Card className={`glass-card border-0 bg-black/90 transition-all ${isFullscreen ? 'fixed inset-2 sm:inset-4 z-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : ''}`}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">

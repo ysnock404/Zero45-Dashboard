@@ -410,12 +410,12 @@ export default function Proxmox() {
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight">Proxmox Cluster</h1>
-          <p className="text-muted-foreground text-lg">Estado dos nós e VMs.</p>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">Proxmox Cluster</h1>
+          <p className="text-muted-foreground text-base md:text-lg">Estado dos nós e VMs.</p>
         </div>
         <Select value={timeframe} onValueChange={(v) => setTimeframe(v as any)}>
-          <SelectTrigger className="w-[160px] bg-black/50 border-white/10">
+          <SelectTrigger className="w-full md:w-[160px] bg-black/50 border-white/10">
             <SelectValue placeholder="Timeframe" />
           </SelectTrigger>
           <SelectContent className="bg-black/90 border-white/10">
@@ -480,17 +480,17 @@ export default function Proxmox() {
             <CardTitle>Top consumo (VMs online)</CardTitle>
             <p className="text-xs text-muted-foreground">Ordenado por uso de CPU no momento</p>
           </CardHeader>
-          <CardContent className="space-y-3 min-h-[360px] max-h-[360px]">
+          <CardContent className="space-y-3 md:min-h-[360px] md:max-h-[360px]">
             {sortedRunningVms.slice(0, 3).length === 0 && <p className="text-sm text-muted-foreground">Nenhuma VM online.</p>}
             {sortedRunningVms.slice(0, 3).map((vm, idx) => (
               <div key={vm.id} className="flex items-center gap-3 rounded-lg border border-white/10 p-3">
                 <div className="h-8 w-8 flex items-center justify-center rounded-full bg-white/5 text-sm font-semibold">
                   {idx + 1}
                 </div>
-                <div className="w-full space-y-1">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">{vm.name || vm.id}</p>
-                    <Badge variant="outline" className="text-[11px]">VMID {vm.vmid}</Badge>
+                <div className="w-full min-w-0 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium truncate">{vm.name || vm.id}</p>
+                    <Badge variant="outline" className="text-[11px] shrink-0">VMID {vm.vmid}</Badge>
                   </div>
                   <p className="text-[11px] text-muted-foreground">Node {vm.node}</p>
                   <div className="grid grid-cols-2 gap-2">
@@ -723,18 +723,19 @@ const VmCard = ({
 }) => {
   return (
     <div className="rounded-lg border border-white/10 p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="font-medium">{vm.name || vm.id}</p>
-        <Badge variant={keyRunning ? "default" : "outline"} className={keyRunning ? "bg-emerald-500 text-white" : ""}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-medium truncate">{vm.name || vm.id}</p>
+        <Badge variant={keyRunning ? "default" : "outline"} className={`shrink-0 ${keyRunning ? "bg-emerald-500 text-white" : ""}`}>
           {keyRunning ? "online" : "offline"}
         </Badge>
       </div>
-      <p className="text-xs text-muted-foreground">VMID {vm.vmid} • Node {vm.node}</p>
+      <p className="text-xs text-muted-foreground break-words">VMID {vm.vmid} • Node {vm.node}</p>
+      {/* Power actions are destructive — keep them a comfortable tap size. */}
       <div className="flex gap-2">
         <Button
           size="sm"
           variant="outline"
-          className="border-white/10"
+          className="flex-1 sm:flex-none border-white/10"
           disabled={actionLoading === `start-vm-${vm.node}-${vm.vmid}` || keyRunning}
           onClick={() => handleAction("start", "vm", vm.node || "", vm.vmid || 0)}
         >
@@ -743,7 +744,7 @@ const VmCard = ({
         <Button
           size="sm"
           variant="outline"
-          className="border-white/10"
+          className="flex-1 sm:flex-none border-white/10"
           disabled={actionLoading === `stop-vm-${vm.node}-${vm.vmid}` || !keyRunning}
           onClick={() => handleAction("stop", "vm", vm.node || "", vm.vmid || 0)}
         >
@@ -752,7 +753,7 @@ const VmCard = ({
         <Button
           size="sm"
           variant="outline"
-          className="border-white/10"
+          className="flex-1 sm:flex-none border-white/10"
           disabled={actionLoading === `reboot-vm-${vm.node}-${vm.vmid}` || !keyRunning}
           onClick={() => handleAction("reboot", "vm", vm.node || "", vm.vmid || 0)}
         >

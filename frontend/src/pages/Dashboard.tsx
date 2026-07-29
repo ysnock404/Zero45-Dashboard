@@ -11,6 +11,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell,
 } from "recharts"
 import { hostApi, agencyApi, proxmoxApi, sshApi, rdpApi } from "@/services/api"
+import { useIsMobile } from "@/hooks/use-media-query"
 
 const tooltipStyle = {
   backgroundColor: "rgba(0,0,0,0.9)",
@@ -27,6 +28,7 @@ const eur = (n: number, currency = "€") =>
 
 export default function Dashboard() {
   const navigate = useNavigate()
+  const isNarrow = useIsMobile()
   const [metrics, setMetrics] = useState<{ latest: any; history: any[] } | null>(null)
   const [summary, setSummary] = useState<any>(null)
   const [cashflow, setCashflow] = useState<any[]>([])
@@ -134,32 +136,32 @@ export default function Dashboard() {
   if (loading) return <div className="text-muted-foreground">A carregar dashboard…</div>
 
   return (
-    <div className="space-y-8">
-      <header className="flex justify-between items-center flex-wrap gap-4">
-        <div>
-          <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-primary mb-4">
+    <div className="space-y-6 md:space-y-8">
+      <header className="flex justify-between items-start md:items-center flex-wrap gap-4">
+        <div className="min-w-0">
+          <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-primary mb-3 md:mb-4">
             INFRASTRUCTURE CONTROL SUITE
           </div>
-          <h1 className="text-5xl font-bold tracking-tight mb-2">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-2">
             System <span className="text-muted-foreground">Overview</span>
           </h1>
-          <p className="text-muted-foreground text-lg max-w-2xl">
+          <p className="text-muted-foreground text-base md:text-lg max-w-2xl">
             Monitorize e controle toda a sua infraestrutura num painel unificado.
           </p>
         </div>
 
-        <div className="flex gap-4">
-          <Button variant="outline" className="border-white/10 hover:bg-white/5 hover:text-white" onClick={() => navigate("/monitoring")}>
+        <div className="flex gap-3 md:gap-4 w-full sm:w-auto">
+          <Button variant="outline" className="flex-1 sm:flex-none border-white/10 hover:bg-white/5 hover:text-white" onClick={() => navigate("/monitoring")}>
             Monitoring
           </Button>
-          <Button className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_-5px_var(--primary)]" onClick={() => navigate("/agency")}>
+          <Button className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_-5px_var(--primary)]" onClick={() => navigate("/agency")}>
             Ver Agência
           </Button>
         </div>
       </header>
 
       {/* Stats Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Servidores geridos"
           value={`${totalServers}`}
@@ -188,7 +190,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Charts Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Server Performance */}
         <Card className="col-span-full lg:col-span-2 glass-card border-0">
           <CardHeader>
@@ -198,12 +200,12 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[220px] sm:h-[260px] md:h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={performanceData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="time" stroke="rgba(255,255,255,0.5)" style={{ fontSize: 12 }} />
-                  <YAxis stroke="rgba(255,255,255,0.5)" style={{ fontSize: 12 }} />
+                  <XAxis dataKey="time" stroke="rgba(255,255,255,0.5)" style={{ fontSize: isNarrow ? 10 : 12 }} interval="preserveStartEnd" minTickGap={isNarrow ? 24 : 8} />
+                  <YAxis stroke="rgba(255,255,255,0.5)" style={{ fontSize: isNarrow ? 10 : 12 }} width={isNarrow ? 32 : 60} />
                   <Tooltip contentStyle={tooltipStyle} />
                   <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
                   <Line type="monotone" dataKey="cpu" stroke="#F0003C" strokeWidth={2} dot={false} name="CPU %" />
@@ -263,14 +265,14 @@ export default function Dashboard() {
       </div>
 
       {/* Additional Charts */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 md:gap-6 md:grid-cols-2">
         {/* Disk usage distribution */}
         <Card className="glass-card border-0">
           <CardHeader>
             <CardTitle>Utilização de disco</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[220px] sm:h-[260px] md:h-[300px]">
               {diskData.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Sem dados de disco.</div>
               ) : (
@@ -281,8 +283,10 @@ export default function Dashboard() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, value }: any) => `${name}: ${value}GB`}
-                      outerRadius={80}
+                      // Slice labels collide on narrow screens; the legend and
+                      // tooltip still carry the detail there.
+                      label={isNarrow ? false : ({ name, value }: any) => `${name}: ${value}GB`}
+                      outerRadius={isNarrow ? 70 : 80}
                       dataKey="value"
                     >
                       {diskData.map((_: any, index: number) => (
@@ -304,12 +308,12 @@ export default function Dashboard() {
             <CardTitle>Cashflow da Agência ({summary?.year || new Date().getFullYear()})</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[220px] sm:h-[260px] md:h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={cashflow}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" style={{ fontSize: 12 }} />
-                  <YAxis stroke="rgba(255,255,255,0.5)" style={{ fontSize: 12 }} />
+                  <XAxis dataKey="month" stroke="rgba(255,255,255,0.5)" style={{ fontSize: isNarrow ? 10 : 12 }} interval="preserveStartEnd" minTickGap={isNarrow ? 12 : 4} />
+                  <YAxis stroke="rgba(255,255,255,0.5)" style={{ fontSize: isNarrow ? 10 : 12 }} width={isNarrow ? 40 : 60} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => eur(Number(v), currency)} />
                   <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
                   <Bar dataKey="receita" fill="#10b981" radius={[4, 4, 0, 0]} name="Receita" />
@@ -359,13 +363,13 @@ function StatCard({
 }) {
   return (
     <Card className="glass-card border-0 hover:bg-white/5 transition-colors">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between space-y-0 pb-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          {icon}
+      <CardContent className="p-4 md:p-6">
+        <div className="flex items-center justify-between gap-2 space-y-0 pb-2">
+          <p className="text-xs md:text-sm font-medium text-muted-foreground">{title}</p>
+          <span className="shrink-0">{icon}</span>
         </div>
         <div className="space-y-1 mt-2">
-          <div className="text-2xl font-bold">{value}</div>
+          <div className="text-xl md:text-2xl font-bold break-words">{value}</div>
           <div className="flex items-center gap-1 text-xs">
             {trend && (
               <TrendingUp

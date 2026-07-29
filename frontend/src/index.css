@@ -51,12 +51,42 @@
     @apply border-border;
   }
 
+  html {
+    /* Stops iOS from re-flowing text at its own scale in landscape. */
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
     background-image:
       radial-gradient(circle at 0% 0%, rgba(240, 0, 60, 0.15) 0%, transparent 50%),
       radial-gradient(circle at 100% 0%, rgba(20, 20, 20, 1) 0%, transparent 50%);
     background-attachment: fixed;
+    /* No horizontal rubber-banding on touch devices. */
+    overscroll-behavior-x: none;
+  }
+
+  /* `background-attachment: fixed` is expensive/janky on mobile GPUs and is
+     ignored outright by iOS Safari — use a fixed pseudo-layer instead. */
+  @media (max-width: 767px) {
+    body {
+      background-attachment: scroll;
+    }
+  }
+
+  /* Grey flash on tap; we provide our own active states. */
+  a,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Long tokens (hosts, IPs, IDs) must never widen the viewport. */
+  h1, h2, h3, h4, p, span, td, th, li {
+    overflow-wrap: break-word;
   }
 }
 
@@ -74,6 +104,23 @@
   /* Text gradient utility */
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60;
+  }
+
+  /* Horizontally scrollable region with momentum + no visible scrollbar.
+     Used for wide tables and tab strips on small screens. */
+  .scroll-x {
+    @apply overflow-x-auto overscroll-x-contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Respects the notch / home indicator on iOS. */
+  .safe-b {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
 }
 
@@ -110,6 +157,30 @@
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
+}
+
+/* Thin the chrome down on touch screens, where it only steals content width. */
+@media (max-width: 767px) {
+  *::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border: 0;
+  }
+}
+
+/* Users who ask for reduced motion get none of the decorative animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 *::-webkit-scrollbar-track {

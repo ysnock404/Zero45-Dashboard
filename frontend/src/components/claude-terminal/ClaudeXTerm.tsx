@@ -32,7 +32,7 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
 
       term = new XTerm({
         cursorBlink: true,
-        fontSize: 14,
+        fontSize: window.matchMedia("(max-width: 767px)").matches ? 11 : 14,
         fontFamily: 'JetBrains Mono, Menlo, Monaco, "Courier New", monospace',
         theme: {
           background: "#0a0a0a",
@@ -197,7 +197,7 @@ export function ClaudeXTerm({ onConnected, onError, className }: ClaudeXTermProp
   return (
     <div
       ref={terminalRef}
-      className={`w-full h-full bg-[#0a0a0a] rounded-lg p-4 ${className || ""}`}
+      className={`w-full h-full min-h-[50vh] md:min-h-[420px] bg-[#0a0a0a] rounded-lg p-2 md:p-4 ${className || ""}`}
       style={{ minHeight: "500px" }}
     />
   )

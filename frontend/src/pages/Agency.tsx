@@ -24,6 +24,7 @@ import {
 } from "recharts"
 import { useToast } from "@/hooks/use-toast"
 import { agencyApi } from "@/services/api"
+import { useIsMobile } from "@/hooks/use-media-query"
 
 // ---------- constantes (espelham a sheet de Config) ----------
 const TIPOS = ["Receita", "Despesa"]
@@ -82,16 +83,16 @@ export default function Agency() {
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap justify-between items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
             Agência <span className="text-muted-foreground font-normal">· Cashflow</span>
           </h1>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button className="bg-primary hover:bg-primary/90" onClick={() => setQuickAddOpen(true)}>
+        <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+          <Button className="flex-1 sm:flex-none bg-primary hover:bg-primary/90" onClick={() => setQuickAddOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> Nova transação
           </Button>
-          <Button variant="outline" className="border-white/10 hover:bg-white/5 hover:text-white" onClick={handleExport}>
+          <Button variant="outline" className="flex-1 sm:flex-none border-white/10 hover:bg-white/5 hover:text-white" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" /> Exportar CSV
           </Button>
         </div>
@@ -141,22 +142,23 @@ export default function Agency() {
 function Stat({ title, value, sub, tone }: any) {
   const valueColor = tone === "down" ? "text-red-400" : tone === "up" ? "text-green-400" : ""
   return (
-    <div className="px-4 py-3">
-      <div className="text-xs text-muted-foreground mb-1">{title}</div>
-      <div className={`text-lg font-bold leading-tight ${valueColor}`}>{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+    <div className="px-3 py-3 md:px-4 min-w-0">
+      <div className="text-xs text-muted-foreground mb-1 truncate">{title}</div>
+      <div className={`text-base md:text-lg font-bold leading-tight break-words ${valueColor}`}>{value}</div>
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5 break-words">{sub}</div>}
     </div>
   )
 }
 
 function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
   const s = summary
+  const isNarrow = useIsMobile()
   return (
     <div className="space-y-5">
       {/* faixa compacta de KPIs — tudo numa linha */}
       <Card className="glass-card border-0">
         <CardContent className="p-0">
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 divide-x divide-white/5">
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 divide-y divide-x divide-white/5 [&>*:nth-child(odd)]:border-l-0 md:[&>*]:border-l md:[&>*:nth-child(4n+1)]:border-l-0 xl:[&>*:nth-child(7n+1)]:border-l-0">
             <Stat title="Receita (mês)" value={eur(s.receitaMes, currency)} tone="up" />
             <Stat title="Despesas (mês)" value={eur(s.despesaMes, currency)} tone="down" />
             <Stat title="Lucro (mês)" value={eur(s.lucroMes, currency)} tone={s.lucroMes >= 0 ? "up" : "down"} />
@@ -232,10 +234,12 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
-                <Pie data={reports?.receitaPorProjeto || []} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={(e: any) => e.name}>
+                <Pie data={reports?.receitaPorProjeto || []} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={isNarrow ? false : (e: any) => e.name}>
                   {(reports?.receitaPorProjeto || []).map((_: any, i: number) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                 </Pie>
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => eur(Number(v), currency)} />
+                {/* Slice labels are dropped on phones, so the legend carries the names. */}
+                {isNarrow && <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />}
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -296,7 +300,7 @@ function TransactionDialog({ open, setOpen, editing, projects, reload }: any) {
           <DialogTitle>{editing ? "Editar transação" : "Nova transação"}</DialogTitle>
           <DialogDescription>Valores de despesa são guardados como negativos automaticamente.</DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Data"><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="bg-black/50 border-white/10" /></Field>
           <Field label="Valor"><Input type="number" step="0.01" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} className="bg-black/50 border-white/10" /></Field>
           <Field label="Tipo"><FormSelect value={form.type} onChange={(v) => setForm({ ...form, type: v })} options={TIPOS} /></Field>
@@ -305,7 +309,7 @@ function TransactionDialog({ open, setOpen, editing, projects, reload }: any) {
           <Field label="Cliente"><Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} className="bg-black/50 border-white/10" /></Field>
           <Field label="Categoria"><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="bg-black/50 border-white/10" placeholder="Domínio, Subscrição…" /></Field>
           <Field label="Recorrência"><FormSelect value={form.recurrence} onChange={(v) => setForm({ ...form, recurrence: v })} options={RECORRENCIAS} /></Field>
-          <div className="col-span-2"><Field label="Notas"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="bg-black/50 border-white/10" rows={2} /></Field></div>
+          <div className="sm:col-span-2"><Field label="Notas"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="bg-black/50 border-white/10" rows={2} /></Field></div>
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-white/10" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -349,15 +353,15 @@ function TransactionsTab({ transactions, projects, currency, reload }: any) {
 
   return (
     <Card className="glass-card border-0">
-      <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
-        <CardTitle className="flex items-center gap-2"><Receipt className="h-5 w-5" /> Transações ({filtered.length})</CardTitle>
-        <Button className="bg-primary hover:bg-primary/90" onClick={openNew}><Plus className="h-4 w-4 mr-2" /> Nova transação</Button>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <CardTitle className="flex items-center gap-2"><Receipt className="h-5 w-5 shrink-0" /> Transações ({filtered.length})</CardTitle>
+        <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto" onClick={openNew}><Plus className="h-4 w-4 mr-2" /> Nova transação</Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* filtros */}
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="flex items-center gap-2 text-muted-foreground"><Filter className="h-4 w-4" /></div>
-          <Input placeholder="Pesquisar…" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} className="w-48 bg-black/50 border-white/10" />
+        <div className="flex flex-wrap gap-2 md:gap-3 items-center">
+          <div className="hidden sm:flex items-center gap-2 text-muted-foreground"><Filter className="h-4 w-4" /></div>
+          <Input placeholder="Pesquisar…" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} className="w-full sm:w-48 bg-black/50 border-white/10" />
           <FilterSelect value={filters.type} onChange={(v) => setFilters({ ...filters, type: v })} placeholder="Tipo" options={TIPOS} />
           <FilterSelect value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} placeholder="Estado" options={ESTADOS} />
           <FilterSelect value={filters.projectId} onChange={(v) => setFilters({ ...filters, projectId: v })} placeholder="Projeto" options={projects.map((p: any) => ({ label: p.name, value: p.id }))} />
@@ -366,8 +370,9 @@ function TransactionsTab({ transactions, projects, currency, reload }: any) {
           )}
         </div>
 
-        <div className="rounded-lg border border-white/10 overflow-hidden">
-          <Table>
+        {/* 10 columns never fit a phone: scroll the table instead of crushing it. */}
+        <div className="rounded-lg border border-white/10 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+          <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow className="border-white/10 hover:bg-transparent">
                 <TableHead>Data</TableHead><TableHead>Projeto</TableHead><TableHead>Cliente</TableHead>
@@ -442,6 +447,7 @@ function md(text: string) {
 const CHAT_KEY = "agency-ai-chat"
 
 function AssistantTab({ reload }: any) {
+  const isNarrow = useIsMobile()
   const [messages, setMessages] = useState<ChatMsg[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(CHAT_KEY) || "[]") } catch { return [] }
   })
@@ -473,8 +479,8 @@ function AssistantTab({ reload }: any) {
 
   return (
     <Card className="glass-card border-0">
-      <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-base"><Bot className="h-5 w-5" /> Assistente da Agência</CardTitle>
+      <CardHeader className="pb-2 flex flex-row items-center justify-between gap-3">
+        <CardTitle className="flex items-center gap-2 text-base min-w-0"><Bot className="h-5 w-5 shrink-0" /> <span className="truncate">Assistente da Agência</span></CardTitle>
         {messages.length > 0 && (
           <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5 hover:text-white" onClick={() => { setMessages([]); setInput("") }} disabled={busy}>
             <Plus className="h-4 w-4 mr-1.5" /> Novo chat
@@ -482,7 +488,7 @@ function AssistantTab({ reload }: any) {
         )}
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="h-[420px] overflow-y-auto rounded-lg border border-white/10 bg-black/30 p-4 space-y-4">
+        <div className="h-[55vh] md:h-[420px] overflow-y-auto overscroll-contain rounded-lg border border-white/10 bg-black/30 p-3 md:p-4 space-y-4">
           {messages.length === 0 && !busy ? (
             <div className="h-full flex flex-col items-center justify-center text-center gap-3 text-muted-foreground">
               <Bot className="h-10 w-10 opacity-40" />
@@ -504,7 +510,7 @@ function AssistantTab({ reload }: any) {
                   <Bot className="h-4 w-4 text-primary" />
                 </div>
               )}
-              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${m.role === "user" ? "bg-primary/20 border border-primary/30 rounded-br-md" : "bg-white/5 border border-white/10 rounded-bl-md"}`}>
+              <div className={`max-w-[88%] sm:max-w-[80%] min-w-0 break-words rounded-2xl px-3 sm:px-4 py-2.5 text-sm ${m.role === "user" ? "bg-primary/20 border border-primary/30 rounded-br-md" : "bg-white/5 border border-white/10 rounded-bl-md"}`}>
                 {m.role === "assistant" ? md(m.content) : <span className="whitespace-pre-wrap">{m.content}</span>}
                 {m.actions && m.actions.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
@@ -530,11 +536,15 @@ function AssistantTab({ reload }: any) {
           </>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-end">
           <Textarea
             value={input} onChange={(e) => setInput(e.target.value)}
+            enterKeyHint={isNarrow ? "enter" : "send"}
             onKeyDown={(e) => {
               if (e.key !== "Enter") return
+              // No teclado on-screen não há Shift+Enter, por isso Enter faz
+              // nova linha no telemóvel e envia-se pelo botão.
+              if (isNarrow) return
               // Enter envia; Shift/Ctrl/Cmd+Enter faz nova linha
               if (!e.shiftKey && !e.ctrlKey && !e.metaKey) { e.preventDefault(); send(); return }
               if (e.ctrlKey || e.metaKey) {
@@ -547,9 +557,9 @@ function AssistantTab({ reload }: any) {
               }
             }}
             placeholder="Escreve uma mensagem…" disabled={busy} rows={1}
-            className="bg-black/50 border-white/10 min-h-[40px] max-h-32 resize-none"
+            className="bg-black/50 border-white/10 min-h-[44px] max-h-32 resize-none"
           />
-          <Button className="bg-primary hover:bg-primary/90" onClick={send} disabled={busy || !input.trim()}>
+          <Button aria-label="Enviar mensagem" className="bg-primary hover:bg-primary/90 h-11 w-11 shrink-0 p-0" onClick={send} disabled={busy || !input.trim()}>
             <Send className="h-4 w-4" />
           </Button>
         </div>
@@ -573,14 +583,14 @@ function AiLogsTab() {
 
   return (
     <Card className="glass-card border-0">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-base"><ScrollText className="h-5 w-5" /> Ações do assistente AI</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardTitle className="flex items-center gap-2 text-base min-w-0"><ScrollText className="h-5 w-5 shrink-0" /> <span className="truncate">Ações do assistente AI</span></CardTitle>
         <Button variant="outline" size="sm" className="border-white/10" onClick={load}>Atualizar</Button>
       </CardHeader>
       <CardContent>
         {loading ? <div className="text-muted-foreground">A carregar…</div> : (
-          <div className="rounded-lg border border-white/10 overflow-hidden">
-            <Table>
+          <div className="rounded-lg border border-white/10 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+            <Table className="min-w-[640px]">
               <TableHeader>
                 <TableRow className="border-white/10 hover:bg-transparent">
                   <TableHead>Quando</TableHead><TableHead>Ação</TableHead><TableHead>Descrição</TableHead><TableHead>Estado</TableHead>
@@ -646,13 +656,13 @@ function ProjectsTab({ projects, currency, reload }: any) {
 
   return (
     <Card className="glass-card border-0">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2"><Briefcase className="h-5 w-5" /> Projetos · receita prevista total {eur(totalForecast, currency)}/mês</CardTitle>
-        <Button className="bg-primary hover:bg-primary/90" onClick={openNew}><Plus className="h-4 w-4 mr-2" /> Novo projeto</Button>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <CardTitle className="flex items-center gap-2 min-w-0"><Briefcase className="h-5 w-5 shrink-0" /> <span className="break-words">Projetos · receita prevista total {eur(totalForecast, currency)}/mês</span></CardTitle>
+        <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto shrink-0" onClick={openNew}><Plus className="h-4 w-4 mr-2" /> Novo projeto</Button>
       </CardHeader>
       <CardContent>
-        <div className="rounded-lg border border-white/10 overflow-hidden">
-          <Table>
+        <div className="rounded-lg border border-white/10 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+          <Table className="min-w-[820px]">
             <TableHeader>
               <TableRow className="border-white/10 hover:bg-transparent">
                 <TableHead>Projeto</TableHead><TableHead>Cliente</TableHead><TableHead>Modelo</TableHead>
@@ -703,7 +713,7 @@ function ProjectsTab({ projects, currency, reload }: any) {
             <DialogTitle>{editing ? "Editar projeto" : "Novo projeto"}</DialogTitle>
             <DialogDescription>A receita mensal prevista é calculada automaticamente consoante o modelo.</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Nome"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="bg-black/50 border-white/10" /></Field>
             <Field label="Cliente"><Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} className="bg-black/50 border-white/10" /></Field>
             <Field label="Modelo"><FormSelect value={form.model} onChange={(v) => setForm({ ...form, model: v })} options={MODELOS} /></Field>
@@ -711,7 +721,7 @@ function ProjectsTab({ projects, currency, reload }: any) {
             <Field label="Unidade"><Input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className="bg-black/50 border-white/10" placeholder="€/h, €" /></Field>
             <Field label="Horas/dia"><Input type="number" value={form.hoursPerDay} onChange={(e) => setForm({ ...form, hoursPerDay: e.target.value })} className="bg-black/50 border-white/10" /></Field>
             <Field label="Dias/mês"><Input type="number" value={form.daysPerMonth} onChange={(e) => setForm({ ...form, daysPerMonth: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-            <div className="col-span-2"><Field label="Notas"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="bg-black/50 border-white/10" rows={2} /></Field></div>
+            <div className="sm:col-span-2"><Field label="Notas"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="bg-black/50 border-white/10" rows={2} /></Field></div>
             <div className="col-span-2 flex items-center gap-2">
               <Switch checked={form.active} onCheckedChange={(v) => setForm({ ...form, active: v })} />
               <Label>Projeto ativo</Label>
@@ -750,14 +760,14 @@ function ConfigTab({ reload }: any) {
       <CardHeader><CardTitle className="flex items-center gap-2"><SettingsIcon className="h-5 w-5" /> Configuração</CardTitle></CardHeader>
       <CardContent className="space-y-4">
         <Field label="Moeda"><Input value={cfg.currency} onChange={(e) => setCfg({ ...cfg, currency: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Horas default/dia"><Input type="number" value={cfg.defaultHoursPerDay} onChange={(e) => setCfg({ ...cfg, defaultHoursPerDay: e.target.value })} className="bg-black/50 border-white/10" /></Field>
           <Field label="Dias default/mês"><Input type="number" value={cfg.defaultDaysPerMonth} onChange={(e) => setCfg({ ...cfg, defaultDaysPerMonth: e.target.value })} className="bg-black/50 border-white/10" /></Field>
           <Field label="Mês atual início"><Input type="date" value={cfg.monthStart} onChange={(e) => setCfg({ ...cfg, monthStart: e.target.value })} className="bg-black/50 border-white/10" /></Field>
           <Field label="Mês atual fim"><Input type="date" value={cfg.monthEnd} onChange={(e) => setCfg({ ...cfg, monthEnd: e.target.value })} className="bg-black/50 border-white/10" /></Field>
         </div>
         <p className="text-xs text-muted-foreground">Nota: valores negativos = despesas/withdraws.</p>
-        <Button className="bg-primary hover:bg-primary/90" onClick={save}>Guardar configuração</Button>
+        <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto" onClick={save}>Guardar configuração</Button>
       </CardContent>
     </Card>
   )

@@ -312,10 +312,10 @@ export default function SSH() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-2">
             SSH Terminal<span className="text-muted-foreground"></span>
           </h1>
           <p className="text-muted-foreground text-lg">
@@ -323,19 +323,19 @@ export default function SSH() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           <Button
             variant="outline"
             onClick={handleRefreshServers}
             disabled={isRefreshing}
-            className="border-white/10 hover:bg-white/5"
+            className="flex-1 sm:flex-none border-white/10 hover:bg-white/5"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Dialog open={isAddServerOpen} onOpenChange={setIsAddServerOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_-5px_var(--primary)]">
+              <Button className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-white shadow-[0_0_20px_-5px_var(--primary)]">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Server
               </Button>
@@ -405,7 +405,7 @@ export default function SSH() {
                 </p>
               </div>
             </div>
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
               <Button variant="outline" onClick={() => setIsAddServerOpen(false)}>
                 Cancel
               </Button>
@@ -419,57 +419,57 @@ export default function SSH() {
       </header>
 
       {/* Stats */}
-      <div className="grid gap-6 md:grid-cols-4">
+      <div className="grid gap-4 md:gap-6 grid-cols-2 md:grid-cols-4">
         <Card className="glass-card border-0 bg-black/40">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Servers</p>
-                <p className="text-2xl font-bold mt-2">{servers.length}</p>
+          <CardContent className="p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Total Servers</p>
+                <p className="text-xl md:text-2xl font-bold mt-2">{servers.length}</p>
               </div>
-              <Server className="h-8 w-8 text-primary" />
+              <Server className="h-6 w-6 md:h-8 md:w-8 shrink-0 text-primary" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-card border-0 bg-black/40">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Online</p>
-                <p className="text-2xl font-bold mt-2 text-green-500">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Online</p>
+                <p className="text-xl md:text-2xl font-bold mt-2 text-green-500">
                   {servers.filter((s) => s.status === "online").length}
                 </p>
               </div>
-              <Activity className="h-8 w-8 text-green-500" />
+              <Activity className="h-6 w-6 md:h-8 md:w-8 shrink-0 text-green-500" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-card border-0 bg-black/40">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Offline</p>
-                <p className="text-2xl font-bold mt-2 text-muted-foreground">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Offline</p>
+                <p className="text-xl md:text-2xl font-bold mt-2 text-muted-foreground">
                   {servers.filter((s) => s.status === "offline").length}
                 </p>
               </div>
-              <HardDrive className="h-8 w-8 text-muted-foreground" />
+              <HardDrive className="h-6 w-6 md:h-8 md:w-8 shrink-0 text-muted-foreground" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="glass-card border-0 bg-black/40">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Active Sessions</p>
-                <p className="text-2xl font-bold mt-2 text-blue-500">
+          <CardContent className="p-4 md:p-6">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Active Sessions</p>
+                <p className="text-xl md:text-2xl font-bold mt-2 text-blue-500">
                   {servers.filter((s) => s.status === "connected").length}
                 </p>
               </div>
-              <TerminalIcon className="h-8 w-8 text-blue-500" />
+              <TerminalIcon className="h-6 w-6 md:h-8 md:w-8 shrink-0 text-blue-500" />
             </div>
           </CardContent>
         </Card>
@@ -495,11 +495,11 @@ export default function SSH() {
       </Card>
 
       {/* Terminal */}
-      <Card ref={terminalCardRef} className={`glass-card border-0 bg-black/90 transition-all ${isTerminalFullscreen ? 'fixed inset-4 z-50' : ''}`}>
+      <Card ref={terminalCardRef} className={`glass-card border-0 bg-black/90 transition-all ${isTerminalFullscreen ? 'fixed inset-2 sm:inset-4 z-50 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]' : ''}`}>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <TerminalIcon className="h-5 w-5 text-primary" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              <TerminalIcon className="h-5 w-5 text-primary shrink-0" />
               Terminal
               {connectedServer && (
                 <Badge variant="outline" className="border-green-500/50 text-green-500">
@@ -667,12 +667,12 @@ function ServerCard({
   }
 
   return (
-    <div className="flex items-center justify-between p-4 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
-      <div className="flex items-center gap-4">
-        <div className={`h-3 w-3 rounded-full ${getStatusColor(server.status)} animate-pulse`} />
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <p className="font-medium">{server.name}</p>
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 transition-colors">
+      <div className="flex items-start sm:items-center gap-3 sm:gap-4 min-w-0">
+        <div className={`h-3 w-3 shrink-0 mt-1.5 sm:mt-0 rounded-full ${getStatusColor(server.status)} animate-pulse`} />
+        <div className="space-y-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium break-all">{server.name}</p>
             {getStatusBadge(server.status)}
             {server.tags && server.tags.map((tag) => (
               <Badge key={tag} variant="outline" className="text-xs border-white/20">
@@ -680,22 +680,23 @@ function ServerCard({
               </Badge>
             ))}
           </div>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Globe className="h-3 w-3" />
-              {server.username}@{server.host}:{server.port}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1 min-w-0">
+              <Globe className="h-3 w-3 shrink-0" />
+              <span className="break-all">{server.username}@{server.host}:{server.port}</span>
             </span>
             {server.lastConnected && (
-              <span className="text-xs">Last Access: {formatLastConnected(server.lastConnected)}</span>
+              <span className="text-xs shrink-0">Last Access: {formatLastConnected(server.lastConnected)}</span>
             )}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <Button
           variant="outline"
           size="sm"
+          aria-label="Editar servidor"
           className="border-white/10 hover:bg-white/5"
         >
           <Edit className="h-4 w-4" />
@@ -703,6 +704,7 @@ function ServerCard({
         <Button
           variant="outline"
           size="sm"
+          aria-label="Eliminar servidor"
           className="border-white/10 hover:bg-white/5 text-primary hover:text-primary"
           onClick={onDelete}
         >
@@ -711,7 +713,7 @@ function ServerCard({
         <Button
           onClick={onConnect}
           disabled={server.status === "connecting" || server.status === "connected"}
-          className="bg-primary hover:bg-primary/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           size="sm"
         >
           <TerminalIcon className="h-4 w-4 mr-2" />

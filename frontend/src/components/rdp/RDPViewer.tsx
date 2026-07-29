@@ -137,9 +137,9 @@ export function RDPViewer({
   // If no server connected, show placeholder
   if (!serverId) {
     return (
-      <div className={`w-full h-full bg-[#0a0a0a] rounded-lg p-8 flex items-center justify-center ${className || ""}`} style={{ minHeight: "600px" }}>
+      <div className={`w-full h-full bg-[#0a0a0a] rounded-lg p-6 md:p-8 flex items-center justify-center min-h-[280px] md:min-h-[600px] ${className || ""}`}>
         <div className="text-center space-y-4">
-          <div className="text-6xl opacity-20">🖥️</div>
+          <div className="text-5xl md:text-6xl opacity-20">🖥️</div>
           <div>
             <p className="text-lg font-medium text-muted-foreground">No server connected</p>
             <p className="text-sm text-muted-foreground/60 mt-2">
@@ -154,11 +154,11 @@ export function RDPViewer({
   return (
     <div
       ref={containerRef}
-      className={`w-full h-full bg-[#0a0a0a] rounded-lg ${className || ""}`}
+      className={`w-full h-full min-h-[60vh] md:min-h-[600px] bg-[#0a0a0a] rounded-lg ${className || ""}`}
       style={{ minHeight: "600px", position: 'relative' }}
     >
       {/* Status Bar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-black/80 px-4 py-2 flex items-center justify-between text-xs text-muted-foreground border-t border-white/10">
+      <div className="absolute bottom-0 left-0 right-0 bg-black/80 px-3 md:px-4 py-2 flex items-center justify-between gap-2 text-xs text-muted-foreground border-t border-white/10">
         <div className="flex items-center gap-2">
           <Monitor className="h-3 w-3 text-primary" />
           <span>Server: {serverId}</span>

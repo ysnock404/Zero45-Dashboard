@@ -8,6 +8,7 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from "recharts"
 import { hostApi, proxmoxApi, sshApi, rdpApi } from "@/services/api"
+import { useIsMobile } from "@/hooks/use-media-query"
 
 const tooltipStyle = {
   backgroundColor: "rgba(0,0,0,0.9)",
@@ -21,6 +22,7 @@ const fmtGB = (bytes?: number | null) => (bytes ? (bytes / 1e9).toFixed(1) : "0.
 const fmtMB = (bytesPerSec?: number | null) => (bytesPerSec ? (bytesPerSec / 1e6).toFixed(2) : "0.00")
 
 export default function Monitoring() {
+  const isNarrow = useIsMobile()
   const [metrics, setMetrics] = useState<{ latest: any; history: any[] } | null>(null)
   const [proxmoxSummary, setProxmoxSummary] = useState<{ running: number; stopped: number; nodes: number } | null>(null)
   const [sshCount, setSshCount] = useState<{ total: number; active: number } | null>(null)
@@ -92,23 +94,23 @@ export default function Monitoring() {
   if (loading) return <div className="text-muted-foreground">A carregar monitorização…</div>
 
   return (
-    <div className="space-y-8">
-      <header className="flex justify-between items-center flex-wrap gap-4">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tight mb-2">
+    <div className="space-y-6 md:space-y-8">
+      <header className="flex justify-between items-start sm:items-center flex-wrap gap-4">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-2">
             Service <span className="text-muted-foreground">Monitoring</span>
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-base md:text-lg">
             Monitorização em tempo real do host e dos serviços ligados.
           </p>
         </div>
-        <Badge variant="outline" className="border-primary/50 text-primary">
+        <Badge variant="outline" className="border-primary/50 text-primary shrink-0">
           Atualiza a cada 5s
         </Badge>
       </header>
 
       {/* Stats grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:gap-6 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="CPU Load"
           value={`${Math.round(latest?.cpu?.load ?? 0)}%`}
@@ -138,18 +140,18 @@ export default function Monitoring() {
       {/* Performance chart */}
       <Card className="glass-card border-0">
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Desempenho do host (última hora)</span>
+          <CardTitle className="flex items-center justify-between gap-2">
+            <span className="min-w-0 break-words">Desempenho do host (última hora)</span>
             <Badge variant="outline" className="border-primary/50 text-primary">Live</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px]">
+          <div className="h-[220px] sm:h-[260px] md:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis dataKey="time" stroke="rgba(255,255,255,0.5)" style={{ fontSize: 12 }} />
-                <YAxis stroke="rgba(255,255,255,0.5)" style={{ fontSize: 12 }} />
+                <XAxis dataKey="time" stroke="rgba(255,255,255,0.5)" style={{ fontSize: isNarrow ? 10 : 12 }} interval="preserveStartEnd" minTickGap={isNarrow ? 24 : 8} />
+                <YAxis stroke="rgba(255,255,255,0.5)" style={{ fontSize: isNarrow ? 10 : 12 }} width={isNarrow ? 32 : 60} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
                 <Line type="monotone" dataKey="cpu" stroke="#F0003C" strokeWidth={2} dot={false} name="CPU %" />
@@ -161,7 +163,7 @@ export default function Monitoring() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {/* Disk usage */}
         <Card className="glass-card border-0">
           <CardHeader>
@@ -175,8 +177,8 @@ export default function Monitoring() {
             )}
             {(latest?.diskUsage || []).map((d: any) => (
               <div key={d.name} className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>/dev/{d.name}</span>
+                <div className="flex flex-wrap justify-between gap-x-2 text-sm">
+                  <span className="break-all">/dev/{d.name}</span>
                   <span className="text-muted-foreground">
                     {fmtGB(d.used)} / {fmtGB(d.size)} GB{d.usePct != null ? ` (${d.usePct.toFixed(0)}%)` : ""}
                   </span>
@@ -228,14 +230,14 @@ export default function Monitoring() {
 function StatCard({ title, value, sub, icon }: { title: string; value: string; sub: string; icon: React.ReactNode }) {
   return (
     <Card className="glass-card border-0 hover:bg-white/5 transition-colors">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between space-y-0 pb-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          {icon}
+      <CardContent className="p-4 md:p-6">
+        <div className="flex items-center justify-between gap-2 space-y-0 pb-2">
+          <p className="text-xs md:text-sm font-medium text-muted-foreground">{title}</p>
+          <span className="shrink-0">{icon}</span>
         </div>
         <div className="space-y-1 mt-2">
-          <div className="text-2xl font-bold">{value}</div>
-          <p className="text-xs text-muted-foreground">{sub}</p>
+          <div className="text-xl md:text-2xl font-bold break-words">{value}</div>
+          <p className="text-xs text-muted-foreground break-words">{sub}</p>
         </div>
       </CardContent>
     </Card>
@@ -244,14 +246,14 @@ function StatCard({ title, value, sub, icon }: { title: string; value: string; s
 
 function ServiceRow({ icon, label, detail, ok }: { icon: React.ReactNode; label: string; detail: string; ok: boolean }) {
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg border border-white/10 bg-white/5">
-      <div className="flex items-center gap-3">
-        {icon}
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg border border-white/10 bg-white/5">
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="shrink-0">{icon}</span>
         <span className="text-sm font-medium">{label}</span>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">{detail}</span>
-        <span className={`h-2 w-2 rounded-full ${ok ? "bg-green-500" : "bg-white/20"}`} />
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="text-xs text-muted-foreground break-words">{detail}</span>
+        <span className={`h-2 w-2 shrink-0 rounded-full ${ok ? "bg-green-500" : "bg-white/20"}`} />
       </div>
     </div>
   )

@@ -41,9 +41,12 @@ export function Terminal({ serverId, shouldConnect = false, onData, onConnected,
       if (!terminalRef.current) return
 
       // Create terminal instance
+      // Smaller glyphs on phones so a usable number of columns still fits.
+      const isNarrow = window.matchMedia("(max-width: 767px)").matches
+
       term = new XTerm({
         cursorBlink: true,
-        fontSize: 14,
+        fontSize: isNarrow ? 11 : 14,
         fontFamily: 'JetBrains Mono, Menlo, Monaco, "Courier New", monospace',
         theme: {
           background: "#0a0a0a",
@@ -246,9 +249,9 @@ export function Terminal({ serverId, shouldConnect = false, onData, onConnected,
   // If no server connected, show placeholder
   if (!serverId) {
     return (
-      <div className={`w-full h-full bg-[#0a0a0a] rounded-lg p-8 flex items-center justify-center ${className || ""}`} style={{ minHeight: "400px" }}>
+      <div className={`w-full h-full bg-[#0a0a0a] rounded-lg p-6 md:p-8 flex items-center justify-center ${className || ""}`} style={{ minHeight: "280px" }}>
         <div className="text-center space-y-4">
-          <div className="text-6xl opacity-20">💻</div>
+          <div className="text-5xl md:text-6xl opacity-20">💻</div>
           <div>
             <p className="text-lg font-medium text-muted-foreground">No server connected</p>
             <p className="text-sm text-muted-foreground/60 mt-2">
@@ -263,7 +266,7 @@ export function Terminal({ serverId, shouldConnect = false, onData, onConnected,
   return (
     <div
       ref={terminalRef}
-      className={`w-full h-full bg-[#0a0a0a] rounded-lg p-4 ${className || ""}`}
+      className={`w-full h-full min-h-[50vh] md:min-h-[420px] bg-[#0a0a0a] rounded-lg p-2 md:p-4 ${className || ""}`}
       style={{ minHeight: "400px" }}
     />
   )

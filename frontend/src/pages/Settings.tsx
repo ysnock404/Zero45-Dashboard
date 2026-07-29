@@ -44,17 +44,17 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
       <header>
-        <h1 className="text-4xl font-bold tracking-tight mb-2">
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight mb-2">
           Settings & <span className="text-muted-foreground">Preferences</span>
         </h1>
-        <p className="text-muted-foreground text-lg">
+        <p className="text-muted-foreground text-base md:text-lg">
           Configurar a aplicação e a sua conta.
         </p>
       </header>
 
-      <div className="glass-card p-8 rounded-lg border border-white/10 bg-black/40 max-w-md">
+      <div className="glass-card p-5 sm:p-8 rounded-lg border border-white/10 bg-black/40 max-w-md">
         <div className="flex items-center gap-2 mb-6">
           <KeyRound className="h-5 w-5 text-primary" />
           <h2 className="text-xl font-semibold">Alterar Password</h2>

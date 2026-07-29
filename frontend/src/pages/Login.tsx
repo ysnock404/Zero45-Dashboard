@@ -33,20 +33,20 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-[100dvh] flex items-center justify-center p-4 py-[max(1rem,env(safe-area-inset-top))]">
       <div className="absolute inset-0 bg-gradient-radial from-primary/5 via-transparent to-transparent" />
 
-      <div className="glass-card p-8 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl max-w-md w-full relative">
+      <div className="glass-card p-6 sm:p-8 rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl max-w-md w-full relative">
         {/* Logo */}
-        <div className="flex justify-center mb-8">
-          <div className="h-16 w-16 rounded-2xl bg-primary/20 flex items-center justify-center border-2 border-primary/50 shadow-[0_0_30px_-5px_var(--primary)]">
-            <Zap className="h-8 w-8 text-primary" />
+        <div className="flex justify-center mb-6 sm:mb-8">
+          <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-2xl bg-primary/20 flex items-center justify-center border-2 border-primary/50 shadow-[0_0_30px_-5px_var(--primary)]">
+            <Zap className="h-7 w-7 sm:h-8 sm:w-8 text-primary" />
           </div>
         </div>
 
         {/* Title */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight mb-2">ysnockserver</h1>
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">ysnockserver</h1>
           <p className="text-muted-foreground">Universal Control Dashboard</p>
         </div>
 
@@ -63,11 +63,17 @@ export default function Login() {
             <Label htmlFor="username">Username</Label>
             <Input
               id="username"
+              name="username"
               type="text"
               placeholder="admin"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="next"
               className="bg-white/5 border-white/10 focus:border-primary"
             />
           </div>
@@ -76,11 +82,14 @@ export default function Login() {
             <Label htmlFor="password">Password</Label>
             <Input
               id="password"
+              name="password"
               type="password"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
+              enterKeyHint="go"
               className="bg-white/5 border-white/10 focus:border-primary"
             />
           </div>

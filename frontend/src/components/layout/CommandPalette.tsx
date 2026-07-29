@@ -22,6 +22,10 @@ import {
   Search,
   LogOut,
   User,
+  Wallet,
+  Bot,
+  Monitor,
+  Server,
 } from "lucide-react"
 import { useAuthStore } from "@/stores/authStore"
 import { useUIStore } from "@/stores/uiStore"
@@ -57,10 +61,34 @@ export function CommandPalette() {
       keywords: ["home", "overview", "dashboard"],
     },
     {
+      name: "Agência",
+      icon: Wallet,
+      path: "/agency",
+      keywords: ["agencia", "agency", "cashflow", "financeiro", "transacoes"],
+    },
+    {
+      name: "Assistente",
+      icon: Bot,
+      path: "/assistant",
+      keywords: ["assistente", "assistant", "claude", "ai", "chat"],
+    },
+    {
       name: "SSH Terminal",
       icon: Terminal,
       path: "/ssh",
       keywords: ["ssh", "terminal", "shell", "server", "remote"],
+    },
+    {
+      name: "Remote Desktop",
+      icon: Monitor,
+      path: "/rdp",
+      keywords: ["rdp", "remote desktop", "windows", "guacamole"],
+    },
+    {
+      name: "Proxmox",
+      icon: Server,
+      path: "/proxmox",
+      keywords: ["proxmox", "vm", "cluster", "lxc", "virtualizacao"],
     },
     {
       name: "Database",
