@@ -122,6 +122,34 @@
   .safe-b {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+
+  /* Scroll vertical discreto: a barra global é vermelha e grossa (10px), o
+     que numa coluna estreita como a navegação lateral aparece como um risco
+     vermelho colado à borda mesmo quando não há nada para scrollar. */
+  .scroll-y-subtle {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+
+  .scroll-y-subtle::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scroll-y-subtle::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scroll-y-subtle::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border: 0;
+    border-radius: 999px;
+  }
+
+  .scroll-y-subtle::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.28);
+  }
 }
 
 /* Terminal scrollbar styling */

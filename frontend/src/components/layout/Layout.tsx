@@ -36,7 +36,10 @@ export function Layout() {
     <div className="flex h-[100dvh] overflow-hidden font-sans text-foreground">
       <Sidebar />
       <MobileSidebar />
-      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      {/* Sem padding no topo: a Topbar é sticky e sangra até às bordas, por
+          isso é ela que define o espaçamento superior. Um `pt` aqui deixaria
+          uma faixa vazia por cima dela ao fazer scroll. */}
+      <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden px-4 md:px-6 lg:px-8 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <Topbar />
         <Outlet />
       </main>

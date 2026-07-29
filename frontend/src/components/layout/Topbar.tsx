@@ -25,7 +25,11 @@ export function Topbar() {
     navigate("/login")
   }
   return (
-    <div className="sticky top-0 z-30 border-b border-white/10 bg-black/60 backdrop-blur-xl mb-4 md:mb-6 lg:mb-8 -mx-4 md:-mx-6 lg:-mx-8 -mt-4 md:-mt-6 lg:-mt-8 px-4 md:px-6 lg:px-8 py-3 md:py-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    // Sem `-mt-*`: uma margem negativa no topo desancora o `sticky top-0`,
+    // que passa a colar-se acima do ponto certo e deixa o conteúdo passar-lhe
+    // por baixo. A barra sangra só na horizontal (`-mx-*`) e o espaçamento
+    // vertical é o próprio padding dela.
+    <div className="sticky top-0 z-30 border-b border-white/10 bg-background/95 supports-[backdrop-filter]:bg-black/70 backdrop-blur-xl mb-4 md:mb-6 lg:mb-8 -mx-4 md:-mx-6 lg:-mx-8 px-4 md:px-6 lg:px-8 py-3 md:py-4 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           {/* Mobile nav trigger */}

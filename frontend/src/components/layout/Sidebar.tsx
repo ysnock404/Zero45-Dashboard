@@ -37,7 +37,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      <nav className="flex-1 px-4 space-y-1 mt-4 overflow-y-auto overscroll-contain">
+      <nav className="flex-1 px-4 space-y-1 mt-4 scroll-y-subtle">
         {navItems.map((item) => (
           <NavLink
             key={item.path}
@@ -45,7 +45,9 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             end={item.path === "/"}
             onClick={onNavigate}
             className={({ isActive }) =>
-              `w-full flex items-center gap-3 px-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors ${isActive
+              // 44px de alvo de toque no telemóvel; no rato basta menos, e
+              // assim os 13 itens cabem sem gerar scroll na coluna.
+              `w-full flex items-center gap-3 px-3 min-h-[44px] md:min-h-0 md:py-2 rounded-lg text-sm font-medium transition-colors ${isActive
                 ? "bg-primary/10 text-primary border border-primary/20"
                 : "text-muted-foreground hover:bg-white/5 hover:text-white"
               }`
