@@ -43,14 +43,13 @@ function Kpi({
 /**
  * Faixa de KPIs do topo da Agência.
  *
- * Receita/Despesa/Lucro mostram a projeção honesta para o fim do mês: o que
- * já foi feito até hoje + o que falta do mês pro-rateado pelos dias
- * restantes (nunca a meta cheia como se já estivesse garantida).
+ * O valor grande é sempre o real (só "Pago", até hoje) — nunca a meta como
+ * se já estivesse garantida. A projeção honesta para o fim do mês (feito +
+ * pro-rateado pelos dias que restam) fica só no subtítulo pequeno.
  */
 export function KpiStrip({ summary, currency }: { summary: any; currency: string }) {
   const s = summary || {}
-  const lucroPositivo = (s.lucroPrevistoFimMes ?? s.lucroMes ?? 0) >= 0
-  const progresso = `dia ${s.diasPassados ?? 0}/${s.diasNoMes ?? 0} de ${s.mesLabel ?? "mês"}`
+  const lucroPositivo = (s.lucroMes ?? 0) >= 0
 
   const receitaPendente = s.receitaPendenteMes ?? 0
   const despesaPendente = Math.abs(s.despesaPendenteMes ?? 0)
@@ -73,16 +72,16 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
         >
           <Kpi
             label="Receita (mês)"
-            value={eur(s.receitaPrevistaFimMes ?? s.receitaMes ?? 0, currency)}
-            sub={`${eur(s.receitaMes ?? 0, currency)} paga + ${eur(s.receitaPrevistaRestante ?? 0, currency)} prevista`}
-            tone={(s.receitaPrevistaFimMes ?? 0) > 0 ? "up" : "neutral"}
+            value={eur(s.receitaMes ?? 0, currency)}
+            sub={`Previsto: ${eur(s.receitaPrevistaFimMes ?? s.receitaMes ?? 0, currency)}`}
+            tone={(s.receitaMes ?? 0) > 0 ? "up" : "neutral"}
             icon={<TrendingUp />}
           />
           <Kpi
             label="Despesa (mês)"
-            value={eur(Math.abs(s.despesaPrevistaFimMes ?? s.despesaMes ?? 0), currency)}
-            sub={`${eur(Math.abs(s.despesaMes ?? 0), currency)} paga + ${eur(s.despesaPrevistaRestante ?? 0, currency)} prevista`}
-            tone={(s.despesaPrevistaFimMes ?? 0) !== 0 ? "down" : "neutral"}
+            value={eur(Math.abs(s.despesaMes ?? 0), currency)}
+            sub={`Previsto: ${eur(Math.abs(s.despesaPrevistaFimMes ?? s.despesaMes ?? 0), currency)}`}
+            tone={(s.despesaMes ?? 0) !== 0 ? "down" : "neutral"}
             icon={<TrendingDown />}
           />
           <Kpi
@@ -92,9 +91,9 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
             icon={<Clock />}
           />
           <Kpi
-            label="Lucro previsto (mês)"
-            value={eur(s.lucroPrevistoFimMes ?? s.lucroMes ?? 0, currency)}
-            sub={progresso}
+            label="Lucro (mês)"
+            value={eur(s.lucroMes ?? 0, currency)}
+            sub={`Previsto: ${eur(s.lucroPrevistoFimMes ?? s.lucroMes ?? 0, currency)}`}
             tone={lucroPositivo ? "up" : "down"}
             icon={lucroPositivo ? <TrendingUp /> : <TrendingDown />}
           />
