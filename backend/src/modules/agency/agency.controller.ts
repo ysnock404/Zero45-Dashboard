@@ -31,7 +31,10 @@ const parseFilters = (q: any): svc.TxFilters => ({
 
 export const agencyController = {
     // Dashboard
-    getSummary: handle((req) => svc.getSummary(req.query.year ? Number(req.query.year) : undefined)),
+    getSummary: handle((req) => svc.getSummary(
+        req.query.year ? Number(req.query.year) : undefined,
+        req.query.month ? Number(req.query.month) : undefined,
+    )),
     getCashflow: handle((req) => svc.getCashflow(req.query.year ? Number(req.query.year) : undefined)),
     getForecast: handle((req) => svc.getForecast(req.query.months ? Number(req.query.months) : 12)),
     getReports: handle((req) => svc.getReports(parseFilters(req.query))),

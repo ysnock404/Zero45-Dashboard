@@ -255,8 +255,8 @@ const qs = (params?: Record<string, any>) => {
 };
 
 export const agencyApi = {
-    getSummary: async (year?: number) =>
-        (await apiClient.get(`/agency/summary${qs({ year })}`)).data.data,
+    getSummary: async (year?: number, month?: number) =>
+        (await apiClient.get(`/agency/summary${qs({ year, month })}`)).data.data,
     getCashflow: async (year?: number) =>
         (await apiClient.get(`/agency/cashflow${qs({ year })}`)).data.data,
     getForecast: async (months?: number) =>

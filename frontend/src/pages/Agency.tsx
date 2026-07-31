@@ -59,9 +59,15 @@ function ChartTooltip({ active, payload, label, currency }: any) {
 }
 
 // ===================================================================
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => {
+  const label = new Date(2000, i, 1).toLocaleDateString("pt-PT", { month: "long" })
+  return { value: String(i + 1), label: label.charAt(0).toUpperCase() + label.slice(1) }
+})
+
 export default function Agency() {
   const { toast } = useToast()
   const [year] = useState(new Date().getFullYear())
+  const [month, setMonth] = useState(new Date().getMonth() + 1)
   const [summary, setSummary] = useState<any>(null)
   const [cashflow, setCashflow] = useState<any[]>([])
   const [forecast, setForecast] = useState<any>(null)
@@ -84,14 +90,14 @@ export default function Agency() {
   const loadAll = useCallback(async () => {
     try {
       const [s, c, f, r, p, t] = await Promise.all([
-        agencyApi.getSummary(year), agencyApi.getCashflow(year), agencyApi.getForecast(12),
+        agencyApi.getSummary(year, month), agencyApi.getCashflow(year), agencyApi.getForecast(12),
         agencyApi.getReports(), agencyApi.listProjects(), agencyApi.listTransactions(),
       ])
       setSummary(s); setCashflow(c); setForecast(f); setReports(r); setProjects(p); setTransactions(t)
     } catch (e: any) {
       toast({ title: "Erro a carregar", description: e?.message || "Falha na API", variant: "destructive" })
     } finally { setLoading(false) }
-  }, [year, toast])
+  }, [year, month, toast])
 
   useEffect(() => { loadAll() }, [loadAll])
 
@@ -114,6 +120,12 @@ export default function Agency() {
           </h1>
         </div>
         <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+          <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+            <SelectTrigger className="w-[150px] bg-black/50 border-white/10"><SelectValue /></SelectTrigger>
+            <SelectContent className="bg-black/90 border-white/10">
+              {MONTH_OPTIONS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label} {year}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Button className="flex-1 sm:flex-none bg-primary hover:bg-primary/90" onClick={() => setQuickAddOpen(true)}>
             <Plus className="h-4 w-4 mr-2" /> Nova transação
           </Button>

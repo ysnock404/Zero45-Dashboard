@@ -10,6 +10,10 @@ const monthLabelPT = (year: number, monthIdx0: number) => {
     const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
     return `${meses[monthIdx0]} ${year}`;
 };
+const MESES_PT = [
+    'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+    'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+];
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 // Receita mensal prevista de um projeto, consoante o modelo
@@ -258,16 +262,16 @@ export async function deleteTransaction(id: string) {
 // Dashboard summary (KPIs) — tudo ligado às transações + projetos
 // ------------------------------------------------------------------
 
-export async function getSummary(year?: number) {
+// `month` é 1-based (1 = janeiro). Sem `month`, usa o mês corrente real.
+export async function getSummary(year?: number, month?: number) {
     const now = new Date();
     const y = year ?? now.getFullYear();
+    const curMonth = month !== undefined ? month - 1 : now.getMonth();
     const cfg = await getConfig();
 
     const txs = await prisma.agencyTransaction.findMany();
     const projects = await prisma.agencyProject.findMany();
 
-    // mês atual = mês corrente (ou último mês do ano selecionado se ano != atual)
-    const curMonth = y === now.getFullYear() ? now.getMonth() : now.getMonth();
     const inCurrentMonth = (d: Date) => d.getFullYear() === y && d.getMonth() === curMonth;
 
     let receitaMes = 0,
@@ -317,7 +321,12 @@ export async function getSummary(year?: number) {
     // mês (receita/despesa previstas), pro-rateado pelos dias que restam —
     // NUNCA mostra a meta cheia como se já estivesse garantida.
     const diasNoMes = new Date(y, curMonth + 1, 0).getDate();
-    const diasPassados = y === now.getFullYear() && curMonth === now.getMonth() ? now.getDate() : diasNoMes;
+    const mesSelecionadoKey = y * 12 + curMonth;
+    const mesAtualKey = now.getFullYear() * 12 + now.getMonth();
+    const diasPassados =
+        mesSelecionadoKey === mesAtualKey ? now.getDate() // mês corrente: até hoje
+            : mesSelecionadoKey < mesAtualKey ? diasNoMes // mês passado: já terminou
+                : 0; // mês futuro: nada ainda
     const diasRestantes = Math.max(0, diasNoMes - diasPassados);
     const fracaoRestante = diasNoMes > 0 ? diasRestantes / diasNoMes : 0;
 
@@ -335,6 +344,8 @@ export async function getSummary(year?: number) {
 
     return {
         year: y,
+        month: curMonth + 1,
+        mesLabel: MESES_PT[curMonth],
         currency: cfg.currency,
         receitaMes: round2(receitaMes),
         despesaMes: round2(despesaMes),
