@@ -76,6 +76,10 @@ export default function Agency() {
     () => Array.from(new Set(transactions.map((t: any) => t.category).filter(Boolean))).sort(),
     [transactions]
   )
+  const clients = useMemo(
+    () => Array.from(new Set(transactions.map((t: any) => t.client).filter(Boolean))).sort(),
+    [transactions]
+  )
 
   const loadAll = useCallback(async () => {
     try {
@@ -121,7 +125,7 @@ export default function Agency() {
 
       <TransactionDialog
         open={quickAddOpen} setOpen={setQuickAddOpen} editing={null}
-        projects={projects} reload={loadAll} categories={categories}
+        projects={projects} reload={loadAll} categories={categories} clients={clients}
       />
 
       <Tabs defaultValue="overview" className="space-y-5">
@@ -136,7 +140,7 @@ export default function Agency() {
           <OverviewTab summary={summary} cashflow={cashflow} forecast={forecast} reports={reports} currency={currency} />
         </TabsContent>
         <TabsContent value="transactions">
-          <TransactionsTab transactions={transactions} projects={projects} currency={currency} reload={loadAll} categories={categories} />
+          <TransactionsTab transactions={transactions} projects={projects} currency={currency} reload={loadAll} categories={categories} clients={clients} />
         </TabsContent>
         <TabsContent value="projects">
           <ProjectsTab projects={projects} currency={currency} reload={loadAll} />
@@ -324,21 +328,49 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
 // DIALOG DE TRANSAÇÃO (partilhado: header + tab de transações)
 // ===================================================================
 const emptyTx = { date: new Date().toISOString().slice(0, 10), projectId: "", client: "", type: "Despesa", category: "", value: "", status: "Pago", recurrence: "Único", notes: "" }
-const NEW_CATEGORY = "__new__"
+const NEW_OPTION = "__new__"
 
-function TransactionDialog({ open, setOpen, editing, projects, reload, categories = [] }: any) {
+/**
+ * Select com as opções já existentes + "+ Nova…" que revela um input livre.
+ * O pai deve passar `key` (ex.: id da transação em edição) para forçar reset
+ * ao abrir o dialog com outro registo — o estado "a criar" só é calculado
+ * uma vez, na montagem.
+ */
+function PickOrNewSelect({ value, onChange, options, label, placeholder }: { value: string; onChange: (v: string) => void; options: string[]; label: string; placeholder: string }) {
+  const [creating, setCreating] = useState(() => !!value && !options.includes(value))
+
+  if (creating || options.length === 0) {
+    return (
+      <div className="flex gap-1.5">
+        <Input value={value} onChange={(e) => onChange(e.target.value)} className="bg-black/50 border-white/10" placeholder={placeholder} autoFocus={options.length > 0} />
+        {options.length > 0 && (
+          <Button type="button" variant="outline" size="sm" className="border-white/10 shrink-0" onClick={() => { setCreating(false); onChange("") }}>Cancelar</Button>
+        )}
+      </div>
+    )
+  }
+  return (
+    <Select value={value || NONE} onValueChange={(v) => v === NEW_OPTION ? setCreating(true) : onChange(v === NONE ? "" : v)}>
+      <SelectTrigger className="bg-black/50 border-white/10"><SelectValue placeholder="Selecionar" /></SelectTrigger>
+      <SelectContent className="bg-black/90 border-white/10">
+        <SelectItem value={NONE}>— Nenhum(a) —</SelectItem>
+        {options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+        <SelectItem value={NEW_OPTION}>+ {label}…</SelectItem>
+      </SelectContent>
+    </Select>
+  )
+}
+
+function TransactionDialog({ open, setOpen, editing, projects, reload, categories = [], clients = [] }: any) {
   const { toast } = useToast()
   const [form, setForm] = useState<any>(emptyTx)
-  const [newCategory, setNewCategory] = useState(false)
 
   useEffect(() => {
     if (!open) return
     if (editing) {
       setForm({ date: new Date(editing.date).toISOString().slice(0, 10), projectId: editing.projectId || "", client: editing.client || "", type: editing.type, category: editing.category || "", value: Math.abs(editing.value), status: editing.status, recurrence: editing.recurrence, notes: editing.notes || "" })
-      setNewCategory(!!editing.category && !categories.includes(editing.category))
     } else {
       setForm({ ...emptyTx, date: new Date().toISOString().slice(0, 10) })
-      setNewCategory(false)
     }
   }, [open, editing])
 
@@ -366,28 +398,19 @@ function TransactionDialog({ open, setOpen, editing, projects, reload, categorie
           <Field label="Tipo"><FormSelect value={form.type} onChange={(v) => setForm({ ...form, type: v })} options={TIPOS} /></Field>
           <Field label="Estado"><FormSelect value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={ESTADOS} /></Field>
           <Field label="Projeto"><FormSelect value={form.projectId} onChange={(v) => setForm({ ...form, projectId: v })} options={[{ label: "— Nenhum —", value: "" }, ...projects.map((p: any) => ({ label: p.name, value: p.id }))]} /></Field>
-          <Field label="Cliente"><Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} className="bg-black/50 border-white/10" /></Field>
+          <Field label="Cliente">
+            <PickOrNewSelect
+              key={`client-${open}-${editing?.id ?? "new"}`}
+              value={form.client} onChange={(v) => setForm({ ...form, client: v })}
+              options={clients} label="Novo cliente" placeholder="Nome do cliente"
+            />
+          </Field>
           <Field label="Categoria">
-            {newCategory || categories.length === 0 ? (
-              <div className="flex gap-1.5">
-                <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="bg-black/50 border-white/10" placeholder="Domínio, Subscrição…" autoFocus={categories.length > 0} />
-                {categories.length > 0 && (
-                  <Button type="button" variant="outline" size="sm" className="border-white/10 shrink-0" onClick={() => { setNewCategory(false); setForm({ ...form, category: "" }) }}>Cancelar</Button>
-                )}
-              </div>
-            ) : (
-              <Select
-                value={form.category || NONE}
-                onValueChange={(v) => v === NEW_CATEGORY ? setNewCategory(true) : setForm({ ...form, category: v === NONE ? "" : v })}
-              >
-                <SelectTrigger className="bg-black/50 border-white/10"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-                <SelectContent className="bg-black/90 border-white/10">
-                  <SelectItem value={NONE}>— Nenhuma —</SelectItem>
-                  {categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  <SelectItem value={NEW_CATEGORY}>+ Nova categoria…</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
+            <PickOrNewSelect
+              key={`category-${open}-${editing?.id ?? "new"}`}
+              value={form.category} onChange={(v) => setForm({ ...form, category: v })}
+              options={categories} label="Nova categoria" placeholder="Domínio, Subscrição…"
+            />
           </Field>
           <Field label="Recorrência"><FormSelect value={form.recurrence} onChange={(v) => setForm({ ...form, recurrence: v })} options={RECORRENCIAS} /></Field>
           <div className="sm:col-span-2"><Field label="Notas"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="bg-black/50 border-white/10" rows={2} /></Field></div>
@@ -406,7 +429,7 @@ function TransactionDialog({ open, setOpen, editing, projects, reload, categorie
 // ===================================================================
 const PAGE_SIZE = 20
 
-function TransactionsTab({ transactions, projects, currency, reload, categories = [] }: any) {
+function TransactionsTab({ transactions, projects, currency, reload, categories = [], clients = [] }: any) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
@@ -535,7 +558,7 @@ function TransactionsTab({ transactions, projects, currency, reload, categories 
         )}
       </CardContent>
 
-      <TransactionDialog open={open} setOpen={setOpen} editing={editing} projects={projects} reload={reload} categories={categories} />
+      <TransactionDialog open={open} setOpen={setOpen} editing={editing} projects={projects} reload={reload} categories={categories} clients={clients} />
     </Card>
   )
 }

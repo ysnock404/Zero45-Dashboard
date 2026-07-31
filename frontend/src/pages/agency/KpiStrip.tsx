@@ -77,7 +77,7 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
           <Kpi
             label="Despesa prevista (mês)"
             value={eur(Math.abs(s.despesaPrevistaFimMes ?? s.despesaMes ?? 0), currency)}
-            sub={`${eur(Math.abs(s.despesaMes ?? 0), currency)} feita + ${eur(s.despesaPrevistaRestante ?? 0, currency)} prevista`}
+            sub={`${eur(Math.abs(s.despesaMes ?? 0), currency)} feita · ${eur(Math.abs(s.despesaPendenteMes ?? 0), currency)} pendente · ${eur(s.despesaPrevistaRestante ?? 0, currency)} prevista`}
             tone={(s.despesaPrevistaFimMes ?? 0) !== 0 ? "down" : "neutral"}
             icon={<TrendingDown />}
           />

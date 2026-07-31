@@ -272,6 +272,7 @@ export async function getSummary(year?: number) {
 
     let receitaMes = 0,
         despesaMes = 0,
+        despesaPendenteMes = 0,
         receitaTotal = 0,
         despesaTotal = 0;
 
@@ -281,7 +282,10 @@ export async function getSummary(year?: number) {
         else despesaTotal += t.value;
         if (inCurrentMonth(new Date(t.date))) {
             if (isReceita) receitaMes += t.value;
-            else despesaMes += t.value;
+            else {
+                despesaMes += t.value;
+                if (t.status === 'Pendente') despesaPendenteMes += t.value;
+            }
         }
     }
 
@@ -334,6 +338,7 @@ export async function getSummary(year?: number) {
         currency: cfg.currency,
         receitaMes: round2(receitaMes),
         despesaMes: round2(despesaMes),
+        despesaPendenteMes: round2(despesaPendenteMes),
         lucroMes: round2(lucroMes),
         receitaPrevistaMes,
         despesaRecorrenteMes,
