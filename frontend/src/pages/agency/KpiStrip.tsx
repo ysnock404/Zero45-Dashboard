@@ -1,6 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card"
-import { TrendingUp, TrendingDown, Wallet, Repeat, Briefcase, Target, PiggyBank } from "lucide-react"
-import { eur, fmtRunway } from "./format"
+import { TrendingUp, TrendingDown, Wallet, Briefcase } from "lucide-react"
+import { eur } from "./format"
 
 type Tone = "up" | "down" | "neutral"
 
@@ -43,22 +43,21 @@ function Kpi({
 /**
  * Faixa de KPIs do topo da Agência.
  *
- * Mostra também `runwayMeses`, `burnMensal` e `lucroTotal`, que o backend
- * já calculava mas nunca chegavam ao ecrã.
+ * Receita/Despesa/Lucro mostram a projeção honesta para o fim do mês: o que
+ * já foi feito até hoje + o que falta do mês pro-rateado pelos dias
+ * restantes (nunca a meta cheia como se já estivesse garantida).
  */
 export function KpiStrip({ summary, currency }: { summary: any; currency: string }) {
   const s = summary || {}
-  const lucroPositivo = (s.lucroMes ?? 0) >= 0
-
-  // burnMensal > 0 significa que se está a queimar dinheiro.
-  const aQueimar = (s.burnMensal ?? 0) > 0
+  const lucroPositivo = (s.lucroPrevistoFimMes ?? s.lucroMes ?? 0) >= 0
+  const progresso = `dia ${s.diasPassados ?? 0}/${s.diasNoMes ?? 0} do mês`
 
   return (
     <Card className="glass-card border-0 overflow-hidden">
       <CardContent className="p-0">
         <div
           className="
-            grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7
+            grid grid-cols-2 md:grid-cols-4
             [&>*]:border-white/5
             [&>*]:border-t [&>*]:border-l
             [&>*:nth-child(-n+2)]:border-t-0
@@ -66,55 +65,34 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
             md:[&>*:nth-child(-n+4)]:border-t-0
             md:[&>*:nth-child(odd)]:border-l
             md:[&>*:nth-child(4n+1)]:border-l-0
-            xl:[&>*]:border-t-0
-            xl:[&>*:nth-child(4n+1)]:border-l
-            xl:[&>*:nth-child(7n+1)]:border-l-0
           "
         >
           <Kpi
-            label="Receita (mês)"
-            value={eur(s.receitaMes ?? 0, currency)}
-            tone={(s.receitaMes ?? 0) > 0 ? "up" : "neutral"}
+            label="Receita prevista (mês)"
+            value={eur(s.receitaPrevistaFimMes ?? s.receitaMes ?? 0, currency)}
+            sub={`${eur(s.receitaMes ?? 0, currency)} feita + ${eur(s.receitaPrevistaRestante ?? 0, currency)} prevista`}
+            tone={(s.receitaPrevistaFimMes ?? 0) > 0 ? "up" : "neutral"}
             icon={<TrendingUp />}
           />
           <Kpi
-            label="Despesas (mês)"
-            value={eur(Math.abs(s.despesaMes ?? 0), currency)}
-            tone={(s.despesaMes ?? 0) !== 0 ? "down" : "neutral"}
+            label="Despesa prevista (mês)"
+            value={eur(Math.abs(s.despesaPrevistaFimMes ?? s.despesaMes ?? 0), currency)}
+            sub={`${eur(Math.abs(s.despesaMes ?? 0), currency)} feita + ${eur(s.despesaPrevistaRestante ?? 0, currency)} prevista`}
+            tone={(s.despesaPrevistaFimMes ?? 0) !== 0 ? "down" : "neutral"}
             icon={<TrendingDown />}
           />
           <Kpi
-            label="Lucro (mês)"
-            value={eur(s.lucroMes ?? 0, currency)}
+            label="Lucro previsto (mês)"
+            value={eur(s.lucroPrevistoFimMes ?? s.lucroMes ?? 0, currency)}
+            sub={progresso}
             tone={lucroPositivo ? "up" : "down"}
             icon={lucroPositivo ? <TrendingUp /> : <TrendingDown />}
           />
           <Kpi
-            label="Saldo total"
+            label="Saldo acumulado"
             value={eur(s.saldoTotal ?? 0, currency)}
-            sub={s.lucroTotal !== undefined ? `Lucro acum.: ${eur(s.lucroTotal, currency)}` : undefined}
             tone={(s.saldoTotal ?? 0) >= 0 ? "up" : "down"}
             icon={<Wallet />}
-          />
-          <Kpi
-            label="Prevista (mês)"
-            value={eur(s.receitaPrevistaMes ?? 0, currency)}
-            sub={`Anual: ${eur(s.receitaAnualPrevista ?? 0, currency)}`}
-            icon={<Target />}
-          />
-          <Kpi
-            label="Recorrente (mês)"
-            value={eur(s.despesaRecorrenteMes ?? 0, currency)}
-            sub={aQueimar ? `Burn: ${eur(s.burnMensal, currency)}/mês` : "Sem burn líquido"}
-            tone="down"
-            icon={<Repeat />}
-          />
-          <Kpi
-            label="Runway"
-            value={fmtRunway(s.runwayMeses)}
-            sub={`${s.projetosAtivos ?? 0} projeto(s) ativo(s)`}
-            tone={s.runwayMeses === null || s.runwayMeses === undefined ? "up" : s.runwayMeses < 3 ? "down" : "neutral"}
-            icon={<PiggyBank />}
           />
         </div>
       </CardContent>

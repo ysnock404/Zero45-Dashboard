@@ -309,6 +309,21 @@ export async function getSummary(year?: number) {
     // runway: se estamos a queimar dinheiro, quantos meses dura o saldo
     const runwayMeses = burnMensal > 0 ? round2(saldoTotal / burnMensal) : null; // null = positivo/infinito
 
+    // projeção honesta para o fim do mês: o que já foi feito + o que falta do
+    // mês (receita/despesa previstas), pro-rateado pelos dias que restam —
+    // NUNCA mostra a meta cheia como se já estivesse garantida.
+    const diasNoMes = new Date(y, curMonth + 1, 0).getDate();
+    const diasPassados = y === now.getFullYear() && curMonth === now.getMonth() ? now.getDate() : diasNoMes;
+    const diasRestantes = Math.max(0, diasNoMes - diasPassados);
+    const fracaoRestante = diasNoMes > 0 ? diasRestantes / diasNoMes : 0;
+
+    const receitaPrevistaRestante = round2(receitaPrevistaMes * fracaoRestante);
+    const despesaPrevistaRestante = round2(despesaRecorrenteMes * fracaoRestante);
+    const receitaPrevistaFimMes = round2(receitaMes + receitaPrevistaRestante);
+    const despesaPrevistaFimMes = round2(despesaMes - despesaPrevistaRestante);
+    const lucroPrevistoFimMes = round2(receitaPrevistaFimMes + despesaPrevistaFimMes);
+    const saldoPrevistoFimMes = round2(saldoTotal + (lucroPrevistoFimMes - lucroMes));
+
     // despesa média mensal (com base nos meses com atividade)
     const monthsWithData = new Set(txs.map((t) => monthKey(new Date(t.date))));
     const despesaMediaMensal =
@@ -331,6 +346,15 @@ export async function getSummary(year?: number) {
         lucroTotal,
         burnMensal,
         runwayMeses,
+        diasNoMes,
+        diasPassados,
+        diasRestantes,
+        receitaPrevistaRestante,
+        despesaPrevistaRestante,
+        receitaPrevistaFimMes,
+        despesaPrevistaFimMes,
+        lucroPrevistoFimMes,
+        saldoPrevistoFimMes,
     };
 }
 

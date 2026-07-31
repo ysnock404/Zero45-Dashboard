@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table"
 import {
   Wallet, Plus, Trash2, Edit, Download, Send, Bot, ScrollText,
-  Briefcase, Receipt, Settings as SettingsIcon, Filter,
+  Briefcase, Receipt, Settings as SettingsIcon, Filter, X,
 } from "lucide-react"
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast"
 import { agencyApi } from "@/services/api"
 import { useIsMobile } from "@/hooks/use-media-query"
 import { KpiStrip } from "./agency/KpiStrip"
+import { eurCompact } from "./agency/format"
 
 // ---------- constantes (espelham a sheet de Config) ----------
 const TIPOS = ["Receita", "Despesa"]
@@ -37,9 +38,24 @@ const CHART_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#e
 const eur = (n: number, currency = "€") =>
   `${(n ?? 0).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
 
-const tooltipStyle = {
-  backgroundColor: "rgba(10,10,12,0.95)", border: "1px solid rgba(255,255,255,0.1)",
-  borderRadius: 8, color: "#fff", fontSize: 12,
+// Tooltip custom partilhado pelos gráficos: mais fiável que o `formatter` do
+// recharts (que em v3 fica em branco em alguns charts, ex. Pie) e fica mais bonito.
+function ChartTooltip({ active, payload, label, currency }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/90 backdrop-blur-md px-3 py-2 shadow-2xl min-w-[140px]">
+      {label && <div className="text-xs font-medium text-white/80 mb-1.5">{label}</div>}
+      <div className="space-y-1">
+        {payload.map((p: any, i: number) => (
+          <div key={i} className="flex items-center gap-2 text-xs">
+            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: p.color || p.payload?.fill }} />
+            <span className="text-muted-foreground">{p.name}</span>
+            <span className="font-semibold text-white ml-auto tabular-nums">{eur(Number(p.value), currency)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // ===================================================================
@@ -56,6 +72,10 @@ export default function Agency() {
   const [quickAddOpen, setQuickAddOpen] = useState(false)
 
   const currency = summary?.currency || "€"
+  const categories = useMemo(
+    () => Array.from(new Set(transactions.map((t: any) => t.category).filter(Boolean))).sort(),
+    [transactions]
+  )
 
   const loadAll = useCallback(async () => {
     try {
@@ -101,7 +121,7 @@ export default function Agency() {
 
       <TransactionDialog
         open={quickAddOpen} setOpen={setQuickAddOpen} editing={null}
-        projects={projects} reload={loadAll}
+        projects={projects} reload={loadAll} categories={categories}
       />
 
       <Tabs defaultValue="overview" className="space-y-5">
@@ -109,8 +129,6 @@ export default function Agency() {
           <TabsTrigger value="overview"><Wallet className="h-4 w-4 mr-2" />Overview</TabsTrigger>
           <TabsTrigger value="transactions"><Receipt className="h-4 w-4 mr-2" />Transações</TabsTrigger>
           <TabsTrigger value="projects"><Briefcase className="h-4 w-4 mr-2" />Projetos</TabsTrigger>
-          <TabsTrigger value="assistant"><Bot className="h-4 w-4 mr-2" />Assistente</TabsTrigger>
-          <TabsTrigger value="ailogs"><ScrollText className="h-4 w-4 mr-2" />AI Logs</TabsTrigger>
           <TabsTrigger value="config"><SettingsIcon className="h-4 w-4 mr-2" />Configuração</TabsTrigger>
         </TabsList>
 
@@ -118,21 +136,17 @@ export default function Agency() {
           <OverviewTab summary={summary} cashflow={cashflow} forecast={forecast} reports={reports} currency={currency} />
         </TabsContent>
         <TabsContent value="transactions">
-          <TransactionsTab transactions={transactions} projects={projects} currency={currency} reload={loadAll} />
+          <TransactionsTab transactions={transactions} projects={projects} currency={currency} reload={loadAll} categories={categories} />
         </TabsContent>
         <TabsContent value="projects">
           <ProjectsTab projects={projects} currency={currency} reload={loadAll} />
-        </TabsContent>
-        <TabsContent value="assistant">
-          <AssistantTab reload={loadAll} />
-        </TabsContent>
-        <TabsContent value="ailogs">
-          <AiLogsTab />
         </TabsContent>
         <TabsContent value="config">
           <ConfigTab reload={loadAll} />
         </TabsContent>
       </Tabs>
+
+      <AssistantWidget reload={loadAll} />
     </div>
   )
 }
@@ -142,7 +156,10 @@ export default function Agency() {
 // ===================================================================
 function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
   const s = summary
-  const isNarrow = useIsMobile()
+  const axisTick = { fill: "#8a8a93", fontSize: 11 }
+  const receitaPorProjeto = reports?.receitaPorProjeto || []
+  const totalReceitaProjetos = receitaPorProjeto.reduce((a: number, p: any) => a + (p.value || 0), 0)
+
   return (
     <div className="space-y-5">
       <KpiStrip summary={s} currency={currency} />
@@ -151,16 +168,26 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
         <Card className="glass-card border-0 lg:col-span-2">
           <CardHeader className="pb-2"><CardTitle className="text-base">Cashflow mensal real ({s.year})</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={240}>
-              <ComposedChart data={cashflow}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="month" tick={{ fill: "#888", fontSize: 11 }} />
-                <YAxis tick={{ fill: "#888", fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => eur(Number(v), currency)} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="receita" name="Receita" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="despesas" name="Despesas" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="lucro" name="Lucro" stroke="#3b82f6" strokeWidth={2} dot={false} />
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={cashflow} barGap={4} barCategoryGap="28%">
+                <defs>
+                  <linearGradient id="gradReceita" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0.55} />
+                  </linearGradient>
+                  <linearGradient id="gradDespesas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0.55} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis dataKey="month" tick={axisTick} axisLine={false} tickLine={false} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => eurCompact(v, currency)} width={54} />
+                <Tooltip content={<ChartTooltip currency={currency} />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" />
+                <Bar dataKey="receita" name="Receita" fill="url(#gradReceita)" radius={[5, 5, 0, 0]} maxBarSize={28} />
+                <Bar dataKey="despesas" name="Despesas" fill="url(#gradDespesas)" radius={[5, 5, 0, 0]} maxBarSize={28} />
+                <Line type="monotone" dataKey="lucro" name="Lucro" stroke="#3b82f6" strokeWidth={2.5} dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }} activeDot={{ r: 5 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -169,19 +196,19 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
         <Card className="glass-card border-0">
           <CardHeader className="pb-2"><CardTitle className="text-base">Saldo acumulado</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={cashflow}>
                 <defs>
-                  <linearGradient id="acc" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.5} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  <linearGradient id="gradSaldo" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="month" tick={{ fill: "#888", fontSize: 11 }} />
-                <YAxis tick={{ fill: "#888", fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => eur(Number(v), currency)} />
-                <Area type="monotone" dataKey="acumulado" name="Acumulado" stroke="#3b82f6" fill="url(#acc)" strokeWidth={2} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis dataKey="month" tick={axisTick} axisLine={false} tickLine={false} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => eurCompact(v, currency)} width={54} />
+                <Tooltip content={<ChartTooltip currency={currency} />} cursor={{ stroke: "rgba(255,255,255,0.15)" }} />
+                <Area type="monotone" dataKey="acumulado" name="Saldo" stroke="#3b82f6" strokeWidth={2.5} fill="url(#gradSaldo)" dot={false} activeDot={{ r: 5 }} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -190,18 +217,46 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
 
       <div className="grid gap-5 lg:grid-cols-3">
         <Card className="glass-card border-0">
-          <CardHeader className="pb-2"><CardTitle className="text-base">Forecast — próximos 12 meses</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Projeção — próximos 12 meses</CardTitle>
+            <p className="text-xs text-muted-foreground">Saldo acumulado se mantiveres o ritmo atual de projetos e despesas recorrentes.</p>
+          </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={forecast?.series || []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="month" tick={{ fill: "#888", fontSize: 10 }} />
-                <YAxis tick={{ fill: "#888", fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => eur(Number(v), currency)} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="lucro" name="Lucro previsto" fill="#a855f7" radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="acumulado" name="Saldo projetado" stroke="#22c55e" strokeWidth={2} dot={false} />
-              </ComposedChart>
+              <AreaChart data={forecast?.series || []}>
+                <defs>
+                  <linearGradient id="gradForecast" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity={0.55} />
+                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0.03} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" vertical={false} />
+                <XAxis dataKey="month" tick={{ ...axisTick, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => eurCompact(v, currency)} width={50} />
+                <Tooltip
+                  content={({ active, payload, label }: any) => {
+                    if (!active || !payload?.length) return null
+                    const p = payload[0].payload
+                    return (
+                      <div className="rounded-xl border border-white/10 bg-black/90 backdrop-blur-md px-3 py-2 shadow-2xl min-w-[150px]">
+                        <div className="text-xs font-medium text-white/80 mb-1.5">{label}</div>
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
+                          <span className="text-muted-foreground">Saldo projetado</span>
+                          <span className="font-semibold text-white ml-auto tabular-nums">{eur(p.acumulado, currency)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs mt-1">
+                          <span className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+                          <span className="text-muted-foreground">Lucro do mês</span>
+                          <span className="font-semibold text-white ml-auto tabular-nums">{eur(p.lucro, currency)}</span>
+                        </div>
+                      </div>
+                    )
+                  }}
+                  cursor={{ stroke: "rgba(255,255,255,0.15)" }}
+                />
+                <Area type="monotone" dataKey="acumulado" name="Saldo projetado" stroke="#22c55e" strokeWidth={2.5} fill="url(#gradForecast)" activeDot={{ r: 5 }} />
+              </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
@@ -209,16 +264,34 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
         <Card className="glass-card border-0">
           <CardHeader className="pb-2"><CardTitle className="text-base">Receita por projeto</CardTitle></CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={reports?.receitaPorProjeto || []} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75} label={isNarrow ? false : (e: any) => e.name}>
-                  {(reports?.receitaPorProjeto || []).map((_: any, i: number) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => eur(Number(v), currency)} />
-                {/* Slice labels are dropped on phones, so the legend carries the names. */}
-                {isNarrow && <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" />}
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={receitaPorProjeto} dataKey="value" nameKey="name"
+                    cx="50%" cy="50%" innerRadius={52} outerRadius={80}
+                    paddingAngle={2} cornerRadius={4}
+                  >
+                    {receitaPorProjeto.map((_: any, i: number) => (
+                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="rgba(0,0,0,0.4)" strokeWidth={1} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<ChartTooltip currency={currency} />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" layout="horizontal" verticalAlign="bottom" />
+                </PieChart>
+              </ResponsiveContainer>
+              {totalReceitaProjetos > 0 && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ bottom: "18%" }}>
+                  <div className="text-center">
+                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Total</div>
+                    <div className="text-sm font-bold tabular-nums">{eurCompact(totalReceitaProjetos, currency)}</div>
+                  </div>
+                </div>
+              )}
+              {receitaPorProjeto.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">Sem dados.</div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -227,11 +300,17 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={reports?.despesaPorCategoria || []} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis type="number" tick={{ fill: "#888", fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fill: "#888", fontSize: 11 }} width={90} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => eur(Number(v), currency)} />
-                <Bar dataKey="value" name="Despesa" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                <defs>
+                  <linearGradient id="gradDespesaCat" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={1} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => eurCompact(v, currency)} />
+                <YAxis type="category" dataKey="name" tick={axisTick} axisLine={false} tickLine={false} width={90} />
+                <Tooltip content={<ChartTooltip currency={currency} />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                <Bar dataKey="value" name="Despesa" fill="url(#gradDespesaCat)" radius={[0, 5, 5, 0]} maxBarSize={22} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -245,17 +324,21 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
 // DIALOG DE TRANSAÇÃO (partilhado: header + tab de transações)
 // ===================================================================
 const emptyTx = { date: new Date().toISOString().slice(0, 10), projectId: "", client: "", type: "Despesa", category: "", value: "", status: "Pago", recurrence: "Único", notes: "" }
+const NEW_CATEGORY = "__new__"
 
-function TransactionDialog({ open, setOpen, editing, projects, reload }: any) {
+function TransactionDialog({ open, setOpen, editing, projects, reload, categories = [] }: any) {
   const { toast } = useToast()
   const [form, setForm] = useState<any>(emptyTx)
+  const [newCategory, setNewCategory] = useState(false)
 
   useEffect(() => {
     if (!open) return
     if (editing) {
       setForm({ date: new Date(editing.date).toISOString().slice(0, 10), projectId: editing.projectId || "", client: editing.client || "", type: editing.type, category: editing.category || "", value: Math.abs(editing.value), status: editing.status, recurrence: editing.recurrence, notes: editing.notes || "" })
+      setNewCategory(!!editing.category && !categories.includes(editing.category))
     } else {
       setForm({ ...emptyTx, date: new Date().toISOString().slice(0, 10) })
+      setNewCategory(false)
     }
   }, [open, editing])
 
@@ -284,7 +367,28 @@ function TransactionDialog({ open, setOpen, editing, projects, reload }: any) {
           <Field label="Estado"><FormSelect value={form.status} onChange={(v) => setForm({ ...form, status: v })} options={ESTADOS} /></Field>
           <Field label="Projeto"><FormSelect value={form.projectId} onChange={(v) => setForm({ ...form, projectId: v })} options={[{ label: "— Nenhum —", value: "" }, ...projects.map((p: any) => ({ label: p.name, value: p.id }))]} /></Field>
           <Field label="Cliente"><Input value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-          <Field label="Categoria"><Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="bg-black/50 border-white/10" placeholder="Domínio, Subscrição…" /></Field>
+          <Field label="Categoria">
+            {newCategory || categories.length === 0 ? (
+              <div className="flex gap-1.5">
+                <Input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="bg-black/50 border-white/10" placeholder="Domínio, Subscrição…" autoFocus={categories.length > 0} />
+                {categories.length > 0 && (
+                  <Button type="button" variant="outline" size="sm" className="border-white/10 shrink-0" onClick={() => { setNewCategory(false); setForm({ ...form, category: "" }) }}>Cancelar</Button>
+                )}
+              </div>
+            ) : (
+              <Select
+                value={form.category || NONE}
+                onValueChange={(v) => v === NEW_CATEGORY ? setNewCategory(true) : setForm({ ...form, category: v === NONE ? "" : v })}
+              >
+                <SelectTrigger className="bg-black/50 border-white/10"><SelectValue placeholder="Selecionar" /></SelectTrigger>
+                <SelectContent className="bg-black/90 border-white/10">
+                  <SelectItem value={NONE}>— Nenhuma —</SelectItem>
+                  {categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  <SelectItem value={NEW_CATEGORY}>+ Nova categoria…</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          </Field>
           <Field label="Recorrência"><FormSelect value={form.recurrence} onChange={(v) => setForm({ ...form, recurrence: v })} options={RECORRENCIAS} /></Field>
           <div className="sm:col-span-2"><Field label="Notas"><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="bg-black/50 border-white/10" rows={2} /></Field></div>
         </div>
@@ -300,11 +404,16 @@ function TransactionDialog({ open, setOpen, editing, projects, reload }: any) {
 // ===================================================================
 // TRANSAÇÕES
 // ===================================================================
-function TransactionsTab({ transactions, projects, currency, reload }: any) {
+const PAGE_SIZE = 20
+
+function TransactionsTab({ transactions, projects, currency, reload, categories = [] }: any) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [filters, setFilters] = useState<any>({ type: "", status: "", projectId: "", search: "" })
+  const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "date", dir: "desc" })
+  const [groupByMonth, setGroupByMonth] = useState(false)
+  const [page, setPage] = useState(1)
 
   const filtered = useMemo(() => transactions.filter((t: any) => {
     if (filters.type && t.type !== filters.type) return false
@@ -317,6 +426,36 @@ function TransactionsTab({ transactions, projects, currency, reload }: any) {
     }
     return true
   }), [transactions, filters])
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered]
+    const dir = sort.dir === "asc" ? 1 : -1
+    arr.sort((a, b) => {
+      if (sort.key === "value") return (a.value - b.value) * dir
+      return (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir
+    })
+    return arr
+  }, [filtered, sort])
+
+  useEffect(() => { setPage(1) }, [filters, sort, groupByMonth])
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const paged = useMemo(() => sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [sorted, page])
+
+  const groups = useMemo(() => {
+    if (!groupByMonth) return null
+    const map = new Map<string, any[]>()
+    sorted.forEach((t) => {
+      const k = new Date(t.date).toLocaleDateString("pt-PT", { month: "long", year: "numeric" })
+      if (!map.has(k)) map.set(k, [])
+      map.get(k)!.push(t)
+    })
+    return Array.from(map.entries()).map(([label, rows]) => ({
+      label, rows, total: rows.reduce((a, t) => a + t.value, 0),
+    }))
+  }, [sorted, groupByMonth])
+
+  const toggleSort = (key: string) => setSort((s) => s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" })
 
   const openNew = () => { setEditing(null); setOpen(true) }
   const openEdit = (t: any) => { setEditing(t); setOpen(true) }
@@ -345,6 +484,10 @@ function TransactionsTab({ transactions, projects, currency, reload }: any) {
           {(filters.type || filters.status || filters.projectId || filters.search) && (
             <Button variant="ghost" size="sm" onClick={() => setFilters({ type: "", status: "", projectId: "", search: "" })}>Limpar</Button>
           )}
+          <div className="flex items-center gap-2 ml-auto text-sm text-muted-foreground">
+            <Switch checked={groupByMonth} onCheckedChange={setGroupByMonth} />
+            <Label className="cursor-pointer" onClick={() => setGroupByMonth((v) => !v)}>Agrupar por mês</Label>
+          </div>
         </div>
 
         {/* 10 columns never fit a phone: scroll the table instead of crushing it. */}
@@ -352,39 +495,82 @@ function TransactionsTab({ transactions, projects, currency, reload }: any) {
           <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow className="border-white/10 hover:bg-transparent">
-                <TableHead>Data</TableHead><TableHead>Projeto</TableHead><TableHead>Cliente</TableHead>
-                <TableHead>Tipo</TableHead><TableHead>Categoria</TableHead><TableHead className="text-right">Valor</TableHead>
+                <TableHead><SortHeader label="Data" active={sort.key === "date"} dir={sort.dir} onClick={() => toggleSort("date")} /></TableHead>
+                <TableHead>Projeto</TableHead><TableHead>Cliente</TableHead>
+                <TableHead>Tipo</TableHead><TableHead>Categoria</TableHead>
+                <TableHead className="text-right"><SortHeader label="Valor" active={sort.key === "value"} dir={sort.dir} onClick={() => toggleSort("value")} align="right" /></TableHead>
                 <TableHead>Estado</TableHead><TableHead>Recorrência</TableHead><TableHead>Notas</TableHead><TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((t: any) => (
-                <TableRow key={t.id} className="border-white/5">
-                  <TableCell className="whitespace-nowrap">{new Date(t.date).toLocaleDateString("pt-PT")}</TableCell>
-                  <TableCell>{t.projectName || t.project?.name || "—"}</TableCell>
-                  <TableCell>{t.client || "—"}</TableCell>
-                  <TableCell><Badge variant="outline" className={t.type === "Receita" ? "border-green-500/50 text-green-400" : "border-red-500/50 text-red-400"}>{t.type}</Badge></TableCell>
-                  <TableCell>{t.category || "—"}</TableCell>
-                  <TableCell className={`text-right font-medium ${t.value < 0 ? "text-red-400" : "text-green-400"}`}>{eur(t.value, currency)}</TableCell>
-                  <TableCell><Badge variant="outline" className={statusColor(t.status)}>{t.status}</Badge></TableCell>
-                  <TableCell className="text-muted-foreground">{t.recurrence}</TableCell>
-                  <TableCell className="text-muted-foreground max-w-[160px] truncate">{t.notes}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1 justify-end">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(t)}><Edit className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300" onClick={() => remove(t.id)}><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {groups
+                ? groups.map((g) => (
+                  <Fragment key={g.label}>
+                    <TableRow className="border-white/5 bg-white/[0.03] hover:bg-white/[0.03]">
+                      <TableCell colSpan={5} className="font-medium capitalize text-muted-foreground">{g.label}</TableCell>
+                      <TableCell className={`text-right font-medium ${g.total < 0 ? "text-red-400" : "text-green-400"}`}>{eur(g.total, currency)}</TableCell>
+                      <TableCell colSpan={4} />
+                    </TableRow>
+                    {g.rows.map((t: any) => (
+                      <TxRow key={t.id} t={t} currency={currency} statusColor={statusColor} openEdit={openEdit} remove={remove} />
+                    ))}
+                  </Fragment>
+                ))
+                : paged.map((t: any) => (
+                  <TxRow key={t.id} t={t} currency={currency} statusColor={statusColor} openEdit={openEdit} remove={remove} />
+                ))}
               {filtered.length === 0 && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Sem transações.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
+
+        {!groupByMonth && totalPages > 1 && (
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>Página {page} de {totalPages}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="border-white/10" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Anterior</Button>
+              <Button variant="outline" size="sm" className="border-white/10" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Seguinte</Button>
+            </div>
+          </div>
+        )}
       </CardContent>
 
-      <TransactionDialog open={open} setOpen={setOpen} editing={editing} projects={projects} reload={reload} />
+      <TransactionDialog open={open} setOpen={setOpen} editing={editing} projects={projects} reload={reload} categories={categories} />
     </Card>
+  )
+}
+
+function SortHeader({ label, active, dir, onClick, align }: { label: string; active: boolean; dir: "asc" | "desc"; onClick: () => void; align?: "right" }) {
+  return (
+    <button
+      type="button" onClick={onClick}
+      className={`inline-flex items-center gap-1 hover:text-white transition-colors ${active ? "text-white" : ""} ${align === "right" ? "flex-row-reverse" : ""}`}
+    >
+      {label}
+      <span className="text-[10px] w-2.5 inline-block">{active ? (dir === "asc" ? "▲" : "▼") : ""}</span>
+    </button>
+  )
+}
+
+function TxRow({ t, currency, statusColor, openEdit, remove }: any) {
+  return (
+    <TableRow className="border-white/5">
+      <TableCell className="whitespace-nowrap">{new Date(t.date).toLocaleDateString("pt-PT")}</TableCell>
+      <TableCell>{t.projectName || t.project?.name || "—"}</TableCell>
+      <TableCell>{t.client || "—"}</TableCell>
+      <TableCell><Badge variant="outline" className={t.type === "Receita" ? "border-green-500/50 text-green-400" : "border-red-500/50 text-red-400"}>{t.type}</Badge></TableCell>
+      <TableCell>{t.category || "—"}</TableCell>
+      <TableCell className={`text-right font-medium ${t.value < 0 ? "text-red-400" : "text-green-400"}`}>{eur(t.value, currency)}</TableCell>
+      <TableCell><Badge variant="outline" className={statusColor(t.status)}>{t.status}</Badge></TableCell>
+      <TableCell className="text-muted-foreground">{t.recurrence}</TableCell>
+      <TableCell className="text-muted-foreground max-w-[160px] truncate">{t.notes}</TableCell>
+      <TableCell>
+        <div className="flex gap-1 justify-end">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(t)}><Edit className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400 hover:text-red-300" onClick={() => remove(t.id)}><Trash2 className="h-4 w-4" /></Button>
+        </div>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -423,8 +609,9 @@ function md(text: string) {
 
 const CHAT_KEY = "agency-ai-chat"
 
-function AssistantTab({ reload }: any) {
+function AssistantWidget({ reload }: any) {
   const isNarrow = useIsMobile()
+  const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMsg[]>(() => {
     try { return JSON.parse(sessionStorage.getItem(CHAT_KEY) || "[]") } catch { return [] }
   })
@@ -454,27 +641,44 @@ function AssistantTab({ reload }: any) {
     } finally { setBusy(false) }
   }
 
+  if (!open) {
+    return (
+      <Button
+        aria-label="Abrir assistente"
+        onClick={() => setOpen(true)}
+        className="fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full p-0 bg-primary hover:bg-primary/90 shadow-lg shadow-black/40"
+      >
+        <Bot className="h-6 w-6" />
+      </Button>
+    )
+  }
+
   return (
-    <Card className="glass-card border-0">
-      <CardHeader className="pb-2 flex flex-row items-center justify-between gap-3">
+    <Card className="glass-card border-0 fixed bottom-5 right-5 z-50 w-[380px] max-w-[calc(100vw-2.5rem)] h-[70vh] max-h-[560px] flex flex-col shadow-xl shadow-black/50">
+      <CardHeader className="pb-2 flex flex-row items-center justify-between gap-3 shrink-0">
         <CardTitle className="flex items-center gap-2 text-base min-w-0"><Bot className="h-5 w-5 shrink-0" /> <span className="truncate">Assistente da Agência</span></CardTitle>
-        {messages.length > 0 && (
-          <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5 hover:text-white" onClick={() => { setMessages([]); setInput("") }} disabled={busy}>
-            <Plus className="h-4 w-4 mr-1.5" /> Novo chat
+        <div className="flex items-center gap-1 shrink-0">
+          {messages.length > 0 && (
+            <Button variant="outline" size="sm" className="border-white/10 hover:bg-white/5 hover:text-white" onClick={() => { setMessages([]); setInput("") }} disabled={busy}>
+              <Plus className="h-4 w-4 mr-1.5" /> Novo
+            </Button>
+          )}
+          <Button aria-label="Fechar assistente" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setOpen(false)}>
+            <X className="h-4 w-4" />
           </Button>
-        )}
+        </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="h-[55vh] md:h-[420px] overflow-y-auto overscroll-contain rounded-lg border border-white/10 bg-black/30 p-3 md:p-4 space-y-4">
+      <CardContent className="flex-1 flex flex-col gap-3 min-h-0">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain rounded-lg border border-white/10 bg-black/30 p-3 space-y-4">
           {messages.length === 0 && !busy ? (
             <div className="h-full flex flex-col items-center justify-center text-center gap-3 text-muted-foreground">
               <Bot className="h-10 w-10 opacity-40" />
               <div className="text-sm max-w-xs">
                 Regista movimentos ou faz perguntas sobre a agência.
                 <div className="mt-3 flex flex-col gap-1.5 text-xs">
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">“fiz 100€ hoje do cliente X”</span>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">“gastei 12€ no domínio”</span>
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">“quanto lucrei este mês?”</span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">"fiz 100€ hoje do cliente X"</span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">"gastei 12€ no domínio"</span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">"quanto lucrei este mês?"</span>
                 </div>
               </div>
             </div>
@@ -513,7 +717,7 @@ function AssistantTab({ reload }: any) {
           </>
           )}
         </div>
-        <div className="flex gap-2 items-end">
+        <div className="flex gap-2 items-end shrink-0">
           <Textarea
             value={input} onChange={(e) => setInput(e.target.value)}
             enterKeyHint={isNarrow ? "enter" : "send"}
@@ -540,57 +744,7 @@ function AssistantTab({ reload }: any) {
             <Send className="h-4 w-4" />
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">Todas as ações do assistente (criar/editar/apagar) ficam registadas na tab AI Logs.</p>
-      </CardContent>
-    </Card>
-  )
-}
-
-// ===================================================================
-// AI LOGS
-// ===================================================================
-function AiLogsTab() {
-  const [logs, setLogs] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-
-  const load = useCallback(() => {
-    agencyApi.aiLogs(200).then(setLogs).catch(() => setLogs([])).finally(() => setLoading(false))
-  }, [])
-  useEffect(() => { load() }, [load])
-
-  return (
-    <Card className="glass-card border-0">
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle className="flex items-center gap-2 text-base min-w-0"><ScrollText className="h-5 w-5 shrink-0" /> <span className="truncate">Ações do assistente AI</span></CardTitle>
-        <Button variant="outline" size="sm" className="border-white/10" onClick={load}>Atualizar</Button>
-      </CardHeader>
-      <CardContent>
-        {loading ? <div className="text-muted-foreground">A carregar…</div> : (
-          <div className="rounded-lg border border-white/10 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
-            <Table className="min-w-[640px]">
-              <TableHeader>
-                <TableRow className="border-white/10 hover:bg-transparent">
-                  <TableHead>Quando</TableHead><TableHead>Ação</TableHead><TableHead>Descrição</TableHead><TableHead>Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((l) => (
-                  <TableRow key={l.id} className="border-white/5">
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(l.createdAt).toLocaleString("pt-PT")}</TableCell>
-                    <TableCell><Badge variant="outline" className="border-white/20">{l.action}</Badge></TableCell>
-                    <TableCell>{l.summary}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={l.success ? "border-green-500/50 text-green-400" : "border-red-500/50 text-red-400"}>
-                        {l.success ? "OK" : "Erro"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {logs.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Sem ações registadas ainda.</TableCell></TableRow>}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground shrink-0">Ações do assistente (criar/editar/apagar) ficam registadas em Configuração.</p>
       </CardContent>
     </Card>
   )
@@ -733,18 +887,72 @@ function ConfigTab({ reload }: any) {
   if (!cfg) return <div className="text-muted-foreground">A carregar…</div>
 
   return (
-    <Card className="glass-card border-0 max-w-xl">
-      <CardHeader><CardTitle className="flex items-center gap-2"><SettingsIcon className="h-5 w-5" /> Configuração</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
-        <Field label="Moeda"><Input value={cfg.currency} onChange={(e) => setCfg({ ...cfg, currency: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Horas default/dia"><Input type="number" value={cfg.defaultHoursPerDay} onChange={(e) => setCfg({ ...cfg, defaultHoursPerDay: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-          <Field label="Dias default/mês"><Input type="number" value={cfg.defaultDaysPerMonth} onChange={(e) => setCfg({ ...cfg, defaultDaysPerMonth: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-          <Field label="Mês atual início"><Input type="date" value={cfg.monthStart} onChange={(e) => setCfg({ ...cfg, monthStart: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-          <Field label="Mês atual fim"><Input type="date" value={cfg.monthEnd} onChange={(e) => setCfg({ ...cfg, monthEnd: e.target.value })} className="bg-black/50 border-white/10" /></Field>
-        </div>
-        <p className="text-xs text-muted-foreground">Nota: valores negativos = despesas/withdraws.</p>
-        <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto" onClick={save}>Guardar configuração</Button>
+    <div className="space-y-5">
+      <Card className="glass-card border-0 max-w-xl">
+        <CardHeader><CardTitle className="flex items-center gap-2"><SettingsIcon className="h-5 w-5" /> Configuração</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <Field label="Moeda"><Input value={cfg.currency} onChange={(e) => setCfg({ ...cfg, currency: e.target.value })} className="bg-black/50 border-white/10" /></Field>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Horas default/dia"><Input type="number" value={cfg.defaultHoursPerDay} onChange={(e) => setCfg({ ...cfg, defaultHoursPerDay: e.target.value })} className="bg-black/50 border-white/10" /></Field>
+            <Field label="Dias default/mês"><Input type="number" value={cfg.defaultDaysPerMonth} onChange={(e) => setCfg({ ...cfg, defaultDaysPerMonth: e.target.value })} className="bg-black/50 border-white/10" /></Field>
+            <Field label="Mês atual início"><Input type="date" value={cfg.monthStart} onChange={(e) => setCfg({ ...cfg, monthStart: e.target.value })} className="bg-black/50 border-white/10" /></Field>
+            <Field label="Mês atual fim"><Input type="date" value={cfg.monthEnd} onChange={(e) => setCfg({ ...cfg, monthEnd: e.target.value })} className="bg-black/50 border-white/10" /></Field>
+          </div>
+          <p className="text-xs text-muted-foreground">Nota: valores negativos = despesas/withdraws.</p>
+          <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto" onClick={save}>Guardar configuração</Button>
+        </CardContent>
+      </Card>
+
+      <AiLogsSection />
+    </div>
+  )
+}
+
+// ===================================================================
+// AI LOGS (secção dentro de Configuração)
+// ===================================================================
+function AiLogsSection() {
+  const [logs, setLogs] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(() => {
+    agencyApi.aiLogs(200).then(setLogs).catch(() => setLogs([])).finally(() => setLoading(false))
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  return (
+    <Card className="glass-card border-0">
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardTitle className="flex items-center gap-2 text-base min-w-0"><ScrollText className="h-5 w-5 shrink-0" /> <span className="truncate">Ações do assistente AI</span></CardTitle>
+        <Button variant="outline" size="sm" className="border-white/10" onClick={load}>Atualizar</Button>
+      </CardHeader>
+      <CardContent>
+        {loading ? <div className="text-muted-foreground">A carregar…</div> : (
+          <div className="rounded-lg border border-white/10 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+            <Table className="min-w-[640px]">
+              <TableHeader>
+                <TableRow className="border-white/10 hover:bg-transparent">
+                  <TableHead>Quando</TableHead><TableHead>Ação</TableHead><TableHead>Descrição</TableHead><TableHead>Estado</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((l) => (
+                  <TableRow key={l.id} className="border-white/5">
+                    <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(l.createdAt).toLocaleString("pt-PT")}</TableCell>
+                    <TableCell><Badge variant="outline" className="border-white/20">{l.action}</Badge></TableCell>
+                    <TableCell>{l.summary}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={l.success ? "border-green-500/50 text-green-400" : "border-red-500/50 text-red-400"}>
+                        {l.success ? "OK" : "Erro"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {logs.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Sem ações registadas ainda.</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
