@@ -54,6 +54,7 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
 
   const receitaPendente = s.receitaPendenteMes ?? 0
   const despesaPendente = Math.abs(s.despesaPendenteMes ?? 0)
+  const pendenteTotal = receitaPendente + despesaPendente
 
   return (
     <Card className="glass-card border-0 overflow-hidden">
@@ -86,8 +87,7 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
           />
           <Kpi
             label="Pendente (mês)"
-            value={eur(despesaPendente, currency)}
-            sub={receitaPendente ? `+ ${eur(receitaPendente, currency)} receita pendente` : "Despesas por pagar"}
+            value={eur(pendenteTotal, currency)}
             tone="warn"
             icon={<Clock />}
           />
