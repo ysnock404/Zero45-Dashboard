@@ -274,20 +274,28 @@ export async function getSummary(year?: number, month?: number) {
 
     const inCurrentMonth = (d: Date) => d.getFullYear() === y && d.getMonth() === curMonth;
 
+    // só "Pago" conta como receita/despesa real — Pendente/Previsto não é
+    // dinheiro que já entrou ou saiu, por isso fica de fora destas somas.
     let receitaMes = 0,
         despesaMes = 0,
+        receitaPendenteMes = 0,
         despesaPendenteMes = 0,
         receitaTotal = 0,
         despesaTotal = 0;
 
     for (const t of txs) {
         const isReceita = t.type === 'Receita';
-        if (isReceita) receitaTotal += t.value;
-        else despesaTotal += t.value;
+        const isPago = t.status === 'Pago';
+        if (isPago) {
+            if (isReceita) receitaTotal += t.value;
+            else despesaTotal += t.value;
+        }
         if (inCurrentMonth(new Date(t.date))) {
-            if (isReceita) receitaMes += t.value;
-            else {
-                despesaMes += t.value;
+            if (isReceita) {
+                if (isPago) receitaMes += t.value;
+                if (t.status === 'Pendente') receitaPendenteMes += t.value;
+            } else {
+                if (isPago) despesaMes += t.value;
                 if (t.status === 'Pendente') despesaPendenteMes += t.value;
             }
         }
@@ -349,6 +357,7 @@ export async function getSummary(year?: number, month?: number) {
         currency: cfg.currency,
         receitaMes: round2(receitaMes),
         despesaMes: round2(despesaMes),
+        receitaPendenteMes: round2(receitaPendenteMes),
         despesaPendenteMes: round2(despesaPendenteMes),
         lucroMes: round2(lucroMes),
         receitaPrevistaMes,

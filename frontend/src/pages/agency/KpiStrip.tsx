@@ -1,11 +1,11 @@
 import { Card, CardContent } from "@/components/ui/card"
-import { TrendingUp, TrendingDown, Wallet, Briefcase } from "lucide-react"
+import { TrendingUp, TrendingDown, Wallet, Briefcase, Clock } from "lucide-react"
 import { eur } from "./format"
 
-type Tone = "up" | "down" | "neutral"
+type Tone = "up" | "down" | "neutral" | "warn"
 
 function toneClass(tone: Tone) {
-  return tone === "up" ? "text-green-400" : tone === "down" ? "text-red-400" : "text-foreground"
+  return tone === "up" ? "text-green-400" : tone === "down" ? "text-red-400" : tone === "warn" ? "text-amber-400" : "text-foreground"
 }
 
 /**
@@ -19,27 +19,18 @@ function Kpi({
   sub,
   tone = "neutral",
   icon,
-  badge,
 }: {
   label: string
   value: string
   sub?: string
   tone?: Tone
   icon?: React.ReactNode
-  badge?: { label: string; value: string }
 }) {
   return (
     <div className="min-w-0 p-3 sm:p-4">
-      <div className="flex items-center justify-between gap-1.5 mb-1">
-        <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
-          {icon && <span className="shrink-0 hidden sm:inline-flex [&_svg]:h-3.5 [&_svg]:w-3.5">{icon}</span>}
-          <span className="text-[11px] sm:text-xs font-medium truncate">{label}</span>
-        </div>
-        {badge && (
-          <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 whitespace-nowrap">
-            {badge.label}: {badge.value}
-          </span>
-        )}
+      <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+        {icon && <span className="shrink-0 hidden sm:inline-flex [&_svg]:h-3.5 [&_svg]:w-3.5">{icon}</span>}
+        <span className="text-[11px] sm:text-xs font-medium truncate">{label}</span>
       </div>
       <div className={`text-base sm:text-lg lg:text-xl font-bold leading-tight tabular-nums break-words ${toneClass(tone)}`}>
         {value}
@@ -61,35 +52,44 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
   const lucroPositivo = (s.lucroPrevistoFimMes ?? s.lucroMes ?? 0) >= 0
   const progresso = `dia ${s.diasPassados ?? 0}/${s.diasNoMes ?? 0} de ${s.mesLabel ?? "mês"}`
 
+  const receitaPendente = s.receitaPendenteMes ?? 0
+  const despesaPendente = Math.abs(s.despesaPendenteMes ?? 0)
+
   return (
     <Card className="glass-card border-0 overflow-hidden">
       <CardContent className="p-0">
         <div
           className="
-            grid grid-cols-2 md:grid-cols-4
+            grid grid-cols-2 md:grid-cols-5
             [&>*]:border-white/5
             [&>*]:border-t [&>*]:border-l
             [&>*:nth-child(-n+2)]:border-t-0
             [&>*:nth-child(odd)]:border-l-0
-            md:[&>*:nth-child(-n+4)]:border-t-0
+            md:[&>*:nth-child(-n+5)]:border-t-0
             md:[&>*:nth-child(odd)]:border-l
-            md:[&>*:nth-child(4n+1)]:border-l-0
+            md:[&>*:nth-child(5n+1)]:border-l-0
           "
         >
           <Kpi
             label="Receita prevista (mês)"
             value={eur(s.receitaPrevistaFimMes ?? s.receitaMes ?? 0, currency)}
-            sub={`${eur(s.receitaMes ?? 0, currency)} feita + ${eur(s.receitaPrevistaRestante ?? 0, currency)} prevista`}
+            sub={`${eur(s.receitaMes ?? 0, currency)} paga + ${eur(s.receitaPrevistaRestante ?? 0, currency)} prevista`}
             tone={(s.receitaPrevistaFimMes ?? 0) > 0 ? "up" : "neutral"}
             icon={<TrendingUp />}
           />
           <Kpi
             label="Despesa prevista (mês)"
             value={eur(Math.abs(s.despesaPrevistaFimMes ?? s.despesaMes ?? 0), currency)}
-            sub={`${eur(Math.abs(s.despesaMes ?? 0), currency)} feita + ${eur(s.despesaPrevistaRestante ?? 0, currency)} prevista`}
+            sub={`${eur(Math.abs(s.despesaMes ?? 0), currency)} paga + ${eur(s.despesaPrevistaRestante ?? 0, currency)} prevista`}
             tone={(s.despesaPrevistaFimMes ?? 0) !== 0 ? "down" : "neutral"}
             icon={<TrendingDown />}
-            badge={(s.despesaPendenteMes ?? 0) !== 0 ? { label: "Pendente", value: eur(Math.abs(s.despesaPendenteMes), currency) } : undefined}
+          />
+          <Kpi
+            label="Pendente (mês)"
+            value={eur(despesaPendente, currency)}
+            sub={receitaPendente ? `+ ${eur(receitaPendente, currency)} receita pendente` : "Despesas por pagar"}
+            tone="warn"
+            icon={<Clock />}
           />
           <Kpi
             label="Lucro previsto (mês)"
