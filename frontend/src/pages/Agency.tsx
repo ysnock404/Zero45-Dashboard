@@ -209,6 +209,8 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
   const axisTick = { fill: "#8a8a93", fontSize: 11 }
   const lucroPorProjeto = reports?.lucroPorProjeto || []
   const totalLucroProjetos = lucroPorProjeto.reduce((a: number, p: any) => a + (p.value || 0), 0)
+  const despesaPorProjeto = reports?.despesaPorProjeto || []
+  const totalDespesaProjetos = despesaPorProjeto.reduce((a: number, p: any) => a + (p.value || 0), 0)
 
   return (
     <div className="space-y-5">
@@ -346,23 +348,35 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
         </Card>
 
         <Card className="glass-card border-0">
-          <CardHeader className="pb-2"><CardTitle className="text-base">Despesa por categoria</CardTitle></CardHeader>
+          <CardHeader className="pb-2 flex flex-row items-baseline justify-between gap-2">
+            <CardTitle className="text-base">Despesa por projeto</CardTitle>
+            {despesaPorProjeto.length > 0 && (
+              <span className="text-sm font-bold tabular-nums text-red-400">
+                {eurCompact(totalDespesaProjetos, currency)}
+              </span>
+            )}
+          </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={reports?.despesaPorCategoria || []} layout="vertical">
-                <defs>
-                  <linearGradient id="gradDespesaCat" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.6} />
-                    <stop offset="100%" stopColor="#ef4444" stopOpacity={1} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
-                <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => eurCompact(v, currency)} />
-                <YAxis type="category" dataKey="name" tick={axisTick} axisLine={false} tickLine={false} width={90} />
-                <Tooltip content={<ChartTooltip currency={currency} />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-                <Bar dataKey="value" name="Despesa" fill="url(#gradDespesaCat)" radius={[0, 5, 5, 0]} maxBarSize={22} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={despesaPorProjeto} layout="vertical">
+                  <defs>
+                    <linearGradient id="gradDespesaProj" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.6} />
+                      <stop offset="100%" stopColor="#ef4444" stopOpacity={1} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                  <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => eurCompact(v, currency)} />
+                  <YAxis type="category" dataKey="name" tick={axisTick} axisLine={false} tickLine={false} width={90} />
+                  <Tooltip content={<ChartTooltip currency={currency} />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                  <Bar dataKey="value" name="Despesa" fill="url(#gradDespesaProj)" radius={[0, 5, 5, 0]} maxBarSize={22} />
+                </BarChart>
+              </ResponsiveContainer>
+              {despesaPorProjeto.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">Sem dados.</div>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
