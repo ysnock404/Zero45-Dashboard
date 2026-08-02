@@ -482,11 +482,38 @@ export async function getReports(filters: TxFilters = {}) {
             .sort((a, b) => b.value - a.value);
     };
 
+    // Lucro por projeto: receita menos despesa imputada ao mesmo projeto.
+    // `groupSum` devolve sempre grandezas (Math.abs), por isso a despesa
+    // ganha aqui o sinal negativo. O resultado pode ser negativo — um projeto
+    // que só teve custos é exatamente a informação que interessa ver.
+    const projeto = (t: any) => t.projectName || t.project?.name;
+    const receitaPorProjeto = groupSum(projeto, 'Receita');
+    const despesaPorProjeto = groupSum(projeto, 'Despesa');
+
+    const lucroMap: Record<string, { receita: number; despesa: number }> = {};
+    for (const { name, value } of receitaPorProjeto) {
+        lucroMap[name] = { receita: value, despesa: 0 };
+    }
+    for (const { name, value } of despesaPorProjeto) {
+        if (!lucroMap[name]) lucroMap[name] = { receita: 0, despesa: 0 };
+        lucroMap[name].despesa = value;
+    }
+
+    const lucroPorProjeto = Object.entries(lucroMap)
+        .map(([name, { receita, despesa }]) => ({
+            name,
+            value: round2(receita - despesa),
+            receita,
+            despesa,
+        }))
+        .sort((a, b) => b.value - a.value);
+
     return {
-        receitaPorProjeto: groupSum((t) => t.projectName || t.project?.name, 'Receita'),
+        receitaPorProjeto,
         despesaPorCategoria: groupSum((t) => t.category, 'Despesa'),
         receitaPorCliente: groupSum((t) => t.client, 'Receita'),
-        despesaPorProjeto: groupSum((t) => t.projectName || t.project?.name, 'Despesa'),
+        despesaPorProjeto,
+        lucroPorProjeto,
     };
 }
 

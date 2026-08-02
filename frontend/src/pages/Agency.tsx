@@ -20,7 +20,7 @@ import {
 } from "lucide-react"
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  AreaChart, Area, PieChart, Pie, Cell, BarChart,
+  AreaChart, Area, Cell, BarChart, ReferenceLine,
 } from "recharts"
 import { useToast } from "@/hooks/use-toast"
 import { agencyApi } from "@/services/api"
@@ -34,6 +34,8 @@ const RECORRENCIAS = ["Único", "Diário", "Semanal", "Mensal", "Anual", "Contí
 const MODELOS = ["Hora", "Diário", "Semanal", "Mensal", "Anual", "Único"]
 const ESTADOS = ["Pago", "Pendente", "Previsto"]
 const CHART_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6", "#a855f7", "#ec4899", "#14b8a6", "#eab308"]
+
+const GROUP_BY_MONTH_KEY = "agency:transactions:groupByMonth"
 
 const eur = (n: number, currency = "€") =>
   `${(n ?? 0).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
@@ -53,6 +55,38 @@ function ChartTooltip({ active, payload, label, currency }: any) {
             <span className="font-semibold text-white ml-auto tabular-nums">{eur(Number(p.value), currency)}</span>
           </div>
         ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Tooltip do lucro por projeto. Mostra as duas parcelas além do líquido —
+ * sem elas não se distingue um projeto que faturou pouco de um que faturou
+ * muito e gastou quase tudo.
+ */
+function LucroProjetoTooltip({ active, payload, currency }: any) {
+  if (!active || !payload?.length) return null
+  const p = payload[0].payload
+  const lucro = p.value ?? 0
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/90 backdrop-blur-md px-3 py-2 shadow-2xl min-w-[170px]">
+      <div className="text-xs font-medium text-white/80 mb-1.5">{p.name}</div>
+      <div className="space-y-1 text-xs">
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground">Receita</span>
+          <span className="font-semibold text-green-400 ml-auto tabular-nums">{eur(p.receita ?? 0, currency)}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground">Despesa</span>
+          <span className="font-semibold text-red-400 ml-auto tabular-nums">{eur(p.despesa ?? 0, currency)}</span>
+        </div>
+        <div className="flex items-center gap-3 border-t border-white/10 pt-1 mt-1">
+          <span className="text-muted-foreground">Lucro</span>
+          <span className={`font-semibold ml-auto tabular-nums ${lucro >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {eur(lucro, currency)}
+          </span>
+        </div>
       </div>
     </div>
   )
@@ -173,8 +207,8 @@ export default function Agency() {
 function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
   const s = summary
   const axisTick = { fill: "#8a8a93", fontSize: 11 }
-  const receitaPorProjeto = reports?.receitaPorProjeto || []
-  const totalReceitaProjetos = receitaPorProjeto.reduce((a: number, p: any) => a + (p.value || 0), 0)
+  const lucroPorProjeto = reports?.lucroPorProjeto || []
+  const totalLucroProjetos = lucroPorProjeto.reduce((a: number, p: any) => a + (p.value || 0), 0)
 
   return (
     <div className="space-y-5">
@@ -278,33 +312,33 @@ function OverviewTab({ summary, cashflow, forecast, reports, currency }: any) {
         </Card>
 
         <Card className="glass-card border-0">
-          <CardHeader className="pb-2"><CardTitle className="text-base">Receita por projeto</CardTitle></CardHeader>
+          <CardHeader className="pb-2 flex flex-row items-baseline justify-between gap-2">
+            <CardTitle className="text-base">Lucro por projeto</CardTitle>
+            {lucroPorProjeto.length > 0 && (
+              <span className={`text-sm font-bold tabular-nums ${totalLucroProjetos >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {eurCompact(totalLucroProjetos, currency)}
+              </span>
+            )}
+          </CardHeader>
           <CardContent>
             <div className="relative">
               <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={receitaPorProjeto} dataKey="value" nameKey="name"
-                    cx="50%" cy="50%" innerRadius={52} outerRadius={80}
-                    paddingAngle={2} cornerRadius={4}
-                  >
-                    {receitaPorProjeto.map((_: any, i: number) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="rgba(0,0,0,0.4)" strokeWidth={1} />
+                <BarChart data={lucroPorProjeto} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                  <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v) => eurCompact(v, currency)} />
+                  <YAxis type="category" dataKey="name" tick={axisTick} axisLine={false} tickLine={false} width={90} />
+                  {/* Um projeto no vermelho tem de se ler como tal, por isso a
+                      barra é colorida pelo sinal e não pelo índice. */}
+                  <ReferenceLine x={0} stroke="rgba(255,255,255,0.25)" />
+                  <Tooltip content={<LucroProjetoTooltip currency={currency} />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                  <Bar dataKey="value" name="Lucro" radius={[0, 5, 5, 0]} maxBarSize={22}>
+                    {lucroPorProjeto.map((p: any, i: number) => (
+                      <Cell key={i} fill={(p.value ?? 0) >= 0 ? "#22c55e" : "#ef4444"} />
                     ))}
-                  </Pie>
-                  <Tooltip content={<ChartTooltip currency={currency} />} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" layout="horizontal" verticalAlign="bottom" />
-                </PieChart>
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
-              {totalReceitaProjetos > 0 && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ bottom: "18%" }}>
-                  <div className="text-center">
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Total</div>
-                    <div className="text-sm font-bold tabular-nums">{eurCompact(totalReceitaProjetos, currency)}</div>
-                  </div>
-                </div>
-              )}
-              {receitaPorProjeto.length === 0 && (
+              {lucroPorProjeto.length === 0 && (
                 <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">Sem dados.</div>
               )}
             </div>
@@ -447,7 +481,15 @@ function TransactionsTab({ transactions, projects, currency, reload, categories 
   const [editing, setEditing] = useState<any>(null)
   const [filters, setFilters] = useState<any>({ type: "", status: "", projectId: "", search: "" })
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "date", dir: "desc" })
-  const [groupByMonth, setGroupByMonth] = useState(false)
+  // Preferência de vista — sobrevive a reloads. Fica em localStorage e não num
+  // cookie porque é só do cliente: não faz sentido enviá-la em cada pedido.
+  const [groupByMonth, setGroupByMonth] = useState(() => {
+    try { return localStorage.getItem(GROUP_BY_MONTH_KEY) === "1" } catch { return false }
+  })
+
+  useEffect(() => {
+    try { localStorage.setItem(GROUP_BY_MONTH_KEY, groupByMonth ? "1" : "0") } catch { /* modo privado / storage cheio */ }
+  }, [groupByMonth])
   const [page, setPage] = useState(1)
 
   const filtered = useMemo(() => transactions.filter((t: any) => {
