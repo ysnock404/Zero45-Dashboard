@@ -51,9 +51,14 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
   const s = summary || {}
   const lucroPositivo = (s.lucroMes ?? 0) >= 0
 
+  // Pendente é dinheiro por liquidar nos dois sentidos, por isso o valor tem
+  // de ser líquido: o que há a receber menos o que há a pagar. Somar as duas
+  // pernas dava um total que crescia com as despesas, como se dever mais fosse
+  // estar melhor.
   const receitaPendente = s.receitaPendenteMes ?? 0
   const despesaPendente = Math.abs(s.despesaPendenteMes ?? 0)
-  const pendenteTotal = receitaPendente + despesaPendente
+  const pendenteLiquido = receitaPendente - despesaPendente
+  const pendenteTone: Tone = pendenteLiquido === 0 ? "warn" : pendenteLiquido > 0 ? "up" : "down"
 
   return (
     <Card className="glass-card border-0 overflow-hidden">
@@ -86,8 +91,9 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
           />
           <Kpi
             label="Pendente (mês)"
-            value={eur(pendenteTotal, currency)}
-            tone="warn"
+            value={eur(pendenteLiquido, currency)}
+            sub={`A receber ${eur(receitaPendente, currency)} · a pagar ${eur(despesaPendente, currency)}`}
+            tone={pendenteTone}
             icon={<Clock />}
           />
           <Kpi
