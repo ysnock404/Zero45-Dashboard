@@ -26,7 +26,8 @@ O QUE PODES FAZER (tools):
 - Consultar resumo/KPIs, listar/criar/atualizar/apagar transações, listar/criar/atualizar/apagar projetos.
 - Quando o utilizador reportar algo em linguagem natural ("fiz 100€ hoje", "gastei 30 em hosting"), regista diretamente com a tool certa — sem pedir confirmação, a não ser que falte informação essencial (valor ou tipo).
 - Antes de apagar ou atualizar, se não tiveres o id, lista primeiro para o encontrar. Confirma com o utilizador antes de apagar se houver ambiguidade.
-- NUNCA inventes ids: usa apenas ids devolvidos por list_projects/list_transactions nesta conversa. Para ligar a um projeto podes passar o nome em projectName.
+- NUNCA inventes ids. projectId só pode ser um id devolvido por list_projects nesta conversa; se não tens a certeza, deixa projectId vazio e põe só o nome em projectName — o sistema resolve. Nunca ponhas um nome no campo projectId.
+- Para associar um projeto a transações que já existem, usa update_transaction com projectId ou projectName. Não precisas de recriar nem apagar nada.
 - Só afirmes que algo foi criado/apagado depois de a tool devolver sucesso. Se uma tool falhar, diz ao utilizador o que falhou.
 
 O QUE NÃO PODES FAZER:
@@ -37,16 +38,34 @@ Depois de agir, responde numa frase curta a confirmar o que foi feito (com o val
 
 // Aceita id real, ou resolve por nome (o modelo às vezes manda o nome no
 // campo projectId, ou um id inventado — sem isto rebenta a foreign key).
+//
+// Um projectId que não exista NUNCA pode chegar ao Prisma: a FK rebenta e a
+// transação perde-se. Por isso o id inventado é descartado e tentamos ainda
+// assim resolver pelo nome, que é o que o modelo costuma acertar.
 async function resolveProjectRef(args: any) {
-    const ref = args.projectId || args.projectName;
-    if (!ref) return args;
+    if (args.projectId === undefined && args.projectName === undefined) return args;
+
     const projects = await prisma.agencyProject.findMany();
-    const byId = projects.find((p) => p.id === args.projectId);
-    if (byId) return args;
-    const q = String(ref).toLowerCase().trim();
-    const byName = projects.find((p) => p.name.toLowerCase() === q)
-        || projects.find((p) => p.name.toLowerCase().includes(q) || q.includes(p.name.toLowerCase()));
-    return { ...args, projectId: byName?.id ?? null, projectName: byName ? undefined : args.projectName ?? String(ref) };
+    if (args.projectId && projects.some((p) => p.id === args.projectId)) return args;
+
+    // o id não existe (ou nem foi dado) — resolver pelo nome. Se o modelo pôs
+    // o nome no campo projectId, ainda assim serve como termo de procura.
+    const candidates = [args.projectName, args.projectId].filter(Boolean).map((r) => String(r).toLowerCase().trim());
+    let match: { id: string; name: string } | undefined;
+    for (const q of candidates) {
+        if (!q) continue;
+        match = projects.find((p) => p.name.toLowerCase() === q)
+            || projects.find((p) => p.name.toLowerCase().includes(q) || q.includes(p.name.toLowerCase()));
+        if (match) break;
+    }
+
+    // sem correspondência o projectId fica a null (texto livre em projectName),
+    // que é válido no schema — melhor uma transação sem projeto do que nenhuma.
+    return {
+        ...args,
+        projectId: match?.id ?? null,
+        projectName: match ? match.name : (args.projectName ?? (args.projectId ? String(args.projectId) : null)),
+    };
 }
 
 // ---------------- tools ----------------
@@ -102,7 +121,7 @@ const TOOLS = [
     },
     {
         name: 'update_transaction',
-        description: 'Atualiza uma transação existente pelo id.',
+        description: 'Atualiza uma transação existente pelo id. Serve também para associar (ou remover) o projeto: passa projectId ou projectName.',
         parameters: {
             type: 'object',
             properties: {
@@ -114,12 +133,14 @@ const TOOLS = [
                 recurrence: { type: 'string' },
                 category: { type: 'string' },
                 client: { type: 'string' },
+                projectId: { type: 'string' },
+                projectName: { type: 'string' },
                 notes: { type: 'string' },
             },
             required: ['id'],
         },
-        run: (a: any) => {
-            const { id, ...data } = a;
+        run: async (a: any) => {
+            const { id, ...data } = await resolveProjectRef(a);
             return svc.updateTransaction(id, data);
         },
         mutating: true,

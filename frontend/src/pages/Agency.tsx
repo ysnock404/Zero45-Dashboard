@@ -745,7 +745,7 @@ function AssistantWidget({ reload }: any) {
   }
 
   return (
-    <Card className="glass-card border-0 fixed bottom-5 right-5 z-50 w-[380px] max-w-[calc(100vw-2.5rem)] h-[70vh] max-h-[560px] flex flex-col shadow-xl shadow-black/50">
+    <Card className="glass-card border-0 fixed bottom-5 right-5 z-50 w-[560px] max-w-[calc(100vw-2.5rem)] h-[82vh] max-h-[820px] flex flex-col shadow-xl shadow-black/50">
       <CardHeader className="pb-2 flex flex-row items-center justify-between gap-3 shrink-0">
         <CardTitle className="flex items-center gap-2 text-base min-w-0"><Bot className="h-5 w-5 shrink-0" /> <span className="truncate">Assistente da Agência</span></CardTitle>
         <div className="flex items-center gap-1 shrink-0">
