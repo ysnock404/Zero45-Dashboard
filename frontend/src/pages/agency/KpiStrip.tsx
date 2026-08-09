@@ -2,10 +2,21 @@ import { Card, CardContent } from "@/components/ui/card"
 import { TrendingUp, TrendingDown, Wallet, Briefcase, Clock } from "lucide-react"
 import { eur } from "./format"
 
-type Tone = "up" | "down" | "neutral" | "warn"
+type Tone = "up" | "down" | "neutral" | "warn" | "info"
 
 function toneClass(tone: Tone) {
-  return tone === "up" ? "text-green-400" : tone === "down" ? "text-red-400" : tone === "warn" ? "text-amber-400" : "text-foreground"
+  switch (tone) {
+    case "up":
+      return "text-green-400"
+    case "down":
+      return "text-red-400"
+    case "warn":
+      return "text-amber-400"
+    case "info":
+      return "text-blue-400"
+    default:
+      return "text-foreground"
+  }
 }
 
 /**
@@ -55,10 +66,13 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
   // de ser líquido: o que há a receber menos o que há a pagar. Somar as duas
   // pernas dava um total que crescia com as despesas, como se dever mais fosse
   // estar melhor.
-  const receitaPendente = s.receitaPendenteMes ?? 0
-  const despesaPendente = Math.abs(s.despesaPendenteMes ?? 0)
+  //
+  // O pendente é acumulado de sempre, não do mês: uma fatura por cobrar de
+  // Março continua por cobrar em Agosto, e desaparecer do KPI só porque o mês
+  // virou escondia exatamente o que interessa vigiar.
+  const receitaPendente = s.receitaPendenteTotal ?? 0
+  const despesaPendente = Math.abs(s.despesaPendenteTotal ?? 0)
   const pendenteLiquido = receitaPendente - despesaPendente
-  const pendenteTone: Tone = pendenteLiquido === 0 ? "warn" : pendenteLiquido > 0 ? "up" : "down"
 
   return (
     <Card className="glass-card border-0 overflow-hidden">
@@ -90,23 +104,23 @@ export function KpiStrip({ summary, currency }: { summary: any; currency: string
             icon={<TrendingDown />}
           />
           <Kpi
-            label="Pendente (mês)"
+            label="Pendente (total)"
             value={eur(pendenteLiquido, currency)}
             sub={`A receber ${eur(receitaPendente, currency)} · a pagar ${eur(despesaPendente, currency)}`}
-            tone={pendenteTone}
+            tone="warn"
             icon={<Clock />}
           />
           <Kpi
             label="Lucro (mês)"
             value={eur(s.lucroMes ?? 0, currency)}
             sub={`Previsto: ${eur(s.lucroPrevistoFimMes ?? s.lucroMes ?? 0, currency)}`}
-            tone={lucroPositivo ? "up" : "down"}
+            tone="info"
             icon={lucroPositivo ? <TrendingUp /> : <TrendingDown />}
           />
           <Kpi
             label="Saldo acumulado"
             value={eur(s.saldoTotal ?? 0, currency)}
-            tone={(s.saldoTotal ?? 0) >= 0 ? "up" : "down"}
+            tone="neutral"
             icon={<Wallet />}
           />
         </div>

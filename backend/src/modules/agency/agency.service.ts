@@ -234,13 +234,26 @@ export async function updateTransaction(id: string, data: any) {
     const exists = await prisma.agencyTransaction.findUnique({ where: { id } });
     if (!exists) throw new AppError('Transação não encontrada', 404);
     const type = data.type ?? exists.type;
+
+    // ao ligar a um projeto, herdar nome/cliente como no create — senão a linha
+    // ficava com o projectId certo mas o nome antigo (ou vazio) na tabela.
+    let projectName = data.projectName;
+    let client = data.client;
+    if (data.projectId) {
+        const p = await prisma.agencyProject.findUnique({ where: { id: data.projectId } });
+        if (p) {
+            projectName = p.name;
+            if (client === undefined || client === null) client = p.client;
+        }
+    }
+
     return prisma.agencyTransaction.update({
         where: { id },
         data: {
             date: data.date ? new Date(data.date) : undefined,
             projectId: data.projectId !== undefined ? data.projectId : undefined,
-            projectName: data.projectName,
-            client: data.client,
+            projectName: projectName ?? undefined,
+            client: client ?? undefined,
             type: data.type,
             category: data.category,
             value: data.value !== undefined ? normalizeValue(type, data.value) : undefined,
@@ -280,6 +293,8 @@ export async function getSummary(year?: number, month?: number) {
         despesaMes = 0,
         receitaPendenteMes = 0,
         despesaPendenteMes = 0,
+        receitaPendenteTotal = 0,
+        despesaPendenteTotal = 0,
         receitaTotal = 0,
         despesaTotal = 0;
 
@@ -289,6 +304,12 @@ export async function getSummary(year?: number, month?: number) {
         if (isPago) {
             if (isReceita) receitaTotal += t.value;
             else despesaTotal += t.value;
+        }
+        // pendente acumulado de sempre — dinheiro por liquidar não desaparece
+        // quando o mês vira, por isso o total não filtra por data.
+        if (t.status === 'Pendente') {
+            if (isReceita) receitaPendenteTotal += t.value;
+            else despesaPendenteTotal += t.value;
         }
         if (inCurrentMonth(new Date(t.date))) {
             if (isReceita) {
@@ -359,6 +380,8 @@ export async function getSummary(year?: number, month?: number) {
         despesaMes: round2(despesaMes),
         receitaPendenteMes: round2(receitaPendenteMes),
         despesaPendenteMes: round2(despesaPendenteMes),
+        receitaPendenteTotal: round2(receitaPendenteTotal),
+        despesaPendenteTotal: round2(despesaPendenteTotal),
         lucroMes: round2(lucroMes),
         receitaPrevistaMes,
         despesaRecorrenteMes,
@@ -474,7 +497,9 @@ export async function getReports(filters: TxFilters = {}) {
         const map: Record<string, number> = {};
         for (const t of txs) {
             if (onlyType && t.type !== onlyType) continue;
-            const k = keyFn(t) || '—';
+            // sem projeto/categoria/cliente o grupo é "Outros" — um travessão
+            // não se lê como rótulo num gráfico.
+            const k = keyFn(t) || 'Outros';
             map[k] = round2((map[k] || 0) + Math.abs(t.value));
         }
         return Object.entries(map)
